@@ -213,7 +213,7 @@
         transition: max-height 0.3s ease;
       }
 
-      nav.open { max-height: 400px; }
+      nav.open { max-height: 460px; }
 
       nav ul {
         flex-direction: column;
@@ -245,6 +245,7 @@
           <li><a href="#tour">관광지</a></li>
           <li><a href="#study">배열 학습</a></li>
           <li><a href="#image">이미지</a></li>
+          <li><a href="#sea">제주 바다</a></li>
         </ul>
       </nav>
     </div>
@@ -357,6 +358,19 @@
         <p class="hint" id="urlMsg">이미지를 오른쪽 클릭 → <b>"이미지 주소 복사"</b>로 복사한 주소를 넣으세요. (웹페이지 주소 <code>pixabay.com/photos/…</code>가 아니라 <code>cdn.pixabay.com/…jpg</code> 같은 이미지 파일 주소예요.)</p>
         <div id="urlView"></div>
       </div>
+    </section>
+
+    <!-- 제주 바다 3D -->
+    <section class="page" id="sea">
+      <h1>🌊 제주 바다 3D</h1>
+      <p>제주도 지형 위로 파도가 일렁이고, 태양이 하늘을 이동하며 바다에 비칩니다. 버튼을 누르면 아래에 3D 화면이 나타나요.</p>
+      <div class="study-btns">
+        <button type="button" class="study-btn" id="seaStart">▶ 3D 화면 시작</button>
+      </div>
+      <div class="study-view" id="seaView">
+        <p class="study-empty">위의 버튼을 눌러 보세요 👆 (인터넷 연결이 필요하고, 처음엔 몇 초 걸려요)</p>
+      </div>
+      <p class="study-open"><a href="jeju-sea.html" target="_blank" rel="noopener">↗ 새 창에서 크게 보기</a></p>
     </section>
   </main>
 
@@ -505,6 +519,18 @@
       urlView.appendChild(img);
     });
     showKeyState();
+
+    // 제주 바다 3D: 버튼을 누르면 3D 페이지를 불러옴 (처음부터 불러오면 무거워서)
+    document.getElementById("seaStart").addEventListener("click", e => {
+      const view = document.getElementById("seaView");
+      view.innerHTML = "";
+      const frame = document.createElement("iframe");
+      frame.src = "jeju-sea.html";
+      frame.title = "제주 바다 3D";
+      view.appendChild(frame);
+      e.currentTarget.classList.add("active");
+      e.currentTarget.textContent = "↻ 다시 시작";
+    });
 
     window.addEventListener("hashchange", showPage);
     showPage();
