@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>제주 바다 3D</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #0a1020; color: #f2f5ff;
+      font-family: "Pretendard", "Malgun Gothic", sans-serif; }
+    #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+    #c:active { cursor: grabbing; }
+
+    #ui {
+      position: fixed; top: 12px; left: 12px; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
+      overflow-y: auto; padding: 12px 14px; border-radius: 14px;
+      background: rgba(10, 16, 36, 0.72); border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 14px;
+    }
+    #ui.collapsed .body { display: none; }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    h1 { font-size: 17px; }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .row label { color: #b8c4ea; font-size: 13px; min-width: 76px; }
+    .row input[type=range] { flex: 1; min-width: 100px; accent-color: #ffb347; }
+    button, select, input[type=number], input[type=file] {
+      font: inherit; font-size: 13px; color: #f2f5ff; background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 999px; padding: 6px 12px;
+    }
+    input[type=number] { width: 62px; border-radius: 8px; }
+    input[type=file] { border-radius: 8px; max-width: 100%; }
+    select option { color: #111; }
+    button { cursor: pointer; }
+    button:hover { background: rgba(255, 255, 255, 0.2); }
+    button.on { background: #ff9a3c; border-color: #ff9a3c; color: #231100; font-weight: 700; }
+    .clock { font-family: Consolas, monospace; font-weight: 700; color: #ffd27a; min-width: 48px; }
+    .info { margin-top: 10px; font-size: 12.5px; color: #c9d3f5; line-height: 1.5; }
+    .info b { color: #ffd27a; }
+    details { margin-top: 10px; font-size: 13px; }
+    summary { cursor: pointer; color: #b8c4ea; }
+    .note { margin-top: 6px; font-size: 12px; color: #9aa7d0; line-height: 1.5; }
+    .chk { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #b8c4ea; font-size: 13px; cursor: pointer; }
+    .chk input { accent-color: #ffb347; width: 16px; height: 16px; }
+    #msg { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px;
+      background: rgba(10, 16, 36, 0.7); font-size: 12.5px; color: #c9d3f5; pointer-events: none; white-space: nowrap; max-width: 94vw; overflow: hidden; text-overflow: ellipsis; }
+    #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; background: #0a1020; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="ui">
+    <div class="head">
+      <h1>🌊 제주 바다 3D</h1>
+      <button id="toggle" title="패널 접기/펴기">☰</button>
+    </div>
+    <div class="body">
+      <div class="row">
+        <button id="pSunrise">🌅 일출</button>
+        <button id="pSunset">🌇 일몰</button>
+        <button id="pIsland">🗺️ 섬 전체</button>
+      </div>
+      <div class="row">
+        <button id="play" class="on">⏸</button>
+        <input type="range" id="hour" min="4" max="21" step="0.01" value="6">
+        <span class="clock" id="clock">06:00</span>
+      </div>
+      <div class="row">
+        <label>날짜</label>
+        <input type="number" id="month" min="1" max="12" value="6"> 월
+        <input type="number" id="day" min="1" max="31" value="21"> 일
+      </div>
+      <div class="row">
+        <label>시간 속도</label>
+        <select id="speed">
+          <option value="6">느리게</option>
+          <option value="14" selected>보통</option>
+          <option value="40">빠르게</option>
+        </select>
+      </div>
+      <div class="row"><label>파도 세기</label><input type="range" id="waves" min="0.3" max="2.5" step="0.05" value="1"></div>
+      <div class="row"><label>카메라 높이</label><input type="range" id="camh" min="10" max="3000" step="10" value="650"><span class="clock" id="camhv" style="min-width:52px">650m</span></div>
+      <div class="row"><label>지형 높이 배수</label><input type="range" id="exag" min="1" max="4" step="0.1" value="2"></div>
+      <label class="chk"><input type="checkbox" id="follow" checked> 카메라가 해를 따라 천천히 돌기</label>
+
+      <details>
+        <summary>🗺️ 진짜 제주도 DEM 불러오기</summary>
+        <div class="row"><input type="file" id="demFile" accept=".hgt,.asc,.png,.jpg,.jpeg,.webp"></div>
+        <div class="note">SRTM <b>N33E126.hgt</b>(제주도 전체가 한 장), 도(°) 단위 ESRI <b>.asc</b>, 또는 높이 이미지(8비트 PNG/JPG, 아래 고도 범위 지정)를 읽습니다. 파일은 이 브라우저 안에서만 쓰이고 어디로도 전송되지 않습니다.</div>
+        <div class="row"><label>이미지 고도</label><input type="number" id="zmin" value="0" style="width:70px"> ~ <input type="number" id="zmax" value="1950" style="width:70px"> m</div>
+        <div class="note" id="demStatus">지금은 제주도 모양을 흉내 낸 <b>가짜 지형</b>입니다.</div>
+      </details>
+
+      <div class="info" id="sunInfo"></div>
+      <div class="note">마우스 드래그: 둘러보기 · 휠: 확대/축소 (모바일은 드래그)</div>
+    </div>
+  </div>
+  <div id="msg">로딩 중…</div>
+  <div id="err"><div><h2>3D 화면을 시작하지 못했어요</h2><p style="margin-top:8px;color:#b8c4ea" id="errText"></p></div></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  "use strict";
+  // =====================================================================
+  // 기본 값
+  // =====================================================================
+  const BBOX = { lonMin: 126.10, latMin: 33.10, lonMax: 127.00, latMax: 33.60 };
+  const CLON = 126.55, CLAT = 33.38;                       // 장면 원점(제주도 중심)
+  const M_LAT = 110574, M_LON = 111320 * Math.cos(CLAT * Math.PI / 180);
+  const SUN_LAT = 33.35, SUN_LON = 126.40, UTC = 9;        // 태양 계산 위치/시간대
+  const MAX_VERTS = 260000;
+  const NW = 14;                                           // 파도 개수
+  const DEG = Math.PI / 180;
+
+  const $ = id => document.getElementById(id);
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
+  function fail(msg) {
+    $("err").style.display = "flex";
+    $("errText").textContent = msg;
+  }
+  if (typeof THREE === "undefined") { fail("3D 라이브러리(three.js)를 받지 못했어요. 인터넷 연결을 확인해 주세요."); throw new Error("no three"); }
+
+  // =====================================================================
+  // 태양 위치 (NOAA 간이식) → 방위(북 0°, 시계방향), 고도
+  // =====================================================================
+  function solarPosition(lat, lon, month, day, hour, utc) {
+    const n = Math.floor((Date.UTC(2026, month - 1, day) - Date.UTC(2026, 0, 0)) / 864e5);
+    const g = 2 * Math.PI / 365 * (n - 1 + (hour - 12) / 24);
+    const eqt = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+    const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+    const tst = hour * 60 + eqt + 4 * lon - 60 * utc;
+    const ha = (tst / 4 - 180) * DEG, la = lat * DEG;
+    const cz = Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha);
+    const elev = 90 - Math.acos(clamp(cz, -1, 1)) / DEG;
+    const az = Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(la) - Math.tan(dec) * Math.cos(la)) / DEG;
+    return { az: (180 + az + 360) % 360, el: elev };
+  }
+
+  // =====================================================================
+  // DEM 만들기 / 읽기
+  // dem = { lon0, lat0(맨 위), dLon, dLat(양수, 아래로 갈수록 위도 감소), cols, rows, z(m) }
+  // =====================================================================
+  function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function syntheticDEM() {
+    const cols = 600, rows = 400;
+    const dLon = (BBOX.lonMax - BBOX.lonMin) / (cols - 1), dLat = (BBOX.latMax - BBOX.latMin) / (rows - 1);
+    const z = new Float32Array(cols * rows), R = new Float32Array(cols * rows);
+    const XK = new Float32Array(cols), YK = new Float32Array(rows);
+    for (let j = 0; j < cols; j++) XK[j] = (BBOX.lonMin + j * dLon - CLON) * M_LON / 1000;
+    for (let i = 0; i < rows; i++) YK[i] = (BBOX.latMax - i * dLat - CLAT) * M_LAT / 1000;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const xk = XK[j], yk = YK[i], th = Math.atan2(yk, xk);
+      const ex = xk / 36.5, ey = (yk - 0.12 * xk) / 15.2;
+      const r = Math.hypot(ex, ey) * (1 + 0.05 * Math.sin(3 * th + 1) + 0.03 * Math.sin(5 * th + 2) + 0.02 * Math.sin(9 * th));
+      const base = 760 * Math.pow(clamp(1 - r, 0, 1), 1.45);
+      const d2 = (xk + 1.6) ** 2 + (yk + 1.9) ** 2;
+      z[i * cols + j] = base + 1250 * Math.exp(-Math.pow(d2 / (4.6 * 4.6), 1.25)) - 90 * Math.exp(-d2 / (0.45 * 0.45));
+      R[i * cols + j] = r;
+    }
+    const rnd = mulberry32(7);                              // 오름(작은 화산) 흩뿌리기
+    for (let n = 0; n < 320; n++) {
+      const cx = -30 + 60 * rnd(), cy = -11 + 22 * rnd();
+      if (Math.hypot(cx / 36.5, cy / 15.2) > 0.82) { rnd(); rnd(); continue; }
+      const rad = 0.35 + 0.45 * rnd(), hgt = 40 + 150 * rnd();
+      for (let i = 0; i < rows; i++) {
+        if (Math.abs(YK[i] - cy) > 3 * rad) continue;
+        for (let j = 0; j < cols; j++) {
+          if (Math.abs(XK[j] - cx) > 3 * rad) continue;
+          z[i * cols + j] += hgt * Math.exp(-(((XK[j] - cx) ** 2 + (YK[i] - cy) ** 2) / (rad * rad)));
+        }
+      }
+    }
+    const sx = (126.94 - CLON) * M_LON / 1000, sy = (33.458 - CLAT) * M_LAT / 1000;
+    let zmax = 0;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const k = i * cols + j, xk = XK[j], yk = YK[i];
+      let v = z[k] + 6 * Math.sin(xk * 2.3) * Math.cos(yk * 1.9) + 4 * Math.sin(xk * 5.1 + yk * 3.7);
+      v *= clamp((1 - R[k]) * 14, 0, 1);
+      v = Math.max(v, 185 * Math.exp(-(((xk - sx) ** 2 + (yk - sy) ** 2) / (0.55 * 0.55))));   // 성산일출봉 자리
+      if (v < 1) v = 0;
+      z[k] = v; if (v > zmax) zmax = v;
+    }
+    for (let k = 0; k < z.length; k++) z[k] *= 1947 / zmax;
+    return { lon0: BBOX.lonMin, lat0: BBOX.latMax, dLon, dLat, cols, rows, z, label: "가짜 지형(실제 아님)" };
+  }
+
+  function readHGT(buf, name) {
+    const m = /([NS])(\d{2})([EW])(\d{3})/i.exec(name);
+    if (!m) throw new Error("파일 이름이 N33E126.hgt 형식이어야 해요.");
+    const lat0 = +m[2] * (m[1].toUpperCase() === "N" ? 1 : -1), lon0 = +m[4] * (m[3].toUpperCase() === "E" ? 1 : -1);
+    const n = Math.round(Math.sqrt(buf.byteLength / 2));
+    if (n * n * 2 !== buf.byteLength) throw new Error("HGT 파일 크기가 올바르지 않아요.");
+    const st = 1 / (n - 1);
+    const j0 = Math.max(0, Math.ceil((BBOX.lonMin - lon0) / st)), j1 = Math.min(n - 1, Math.floor((BBOX.lonMax - lon0) / st));
+    const i0 = Math.max(0, Math.ceil((lat0 + 1 - BBOX.latMax) / st)), i1 = Math.min(n - 1, Math.floor((lat0 + 1 - BBOX.latMin) / st));
+    if (j1 - j0 < 4 || i1 - i0 < 4) throw new Error("이 타일은 제주도와 겹치지 않아요. N33E126 이어야 해요.");
+    const cols = j1 - j0 + 1, rows = i1 - i0 + 1, z = new Float32Array(cols * rows), dv = new DataView(buf);
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      let v = dv.getInt16(((i0 + i) * n + (j0 + j)) * 2, false);
+      z[i * cols + j] = v < -1000 ? 0 : v;                    // 자료 없음(-32768) 은 0
+    }
+    return { lon0: lon0 + j0 * st, lat0: lat0 + 1 - i0 * st, dLon: st, dLat: st, cols, rows, z, label: "SRTM " + name };
+  }
+
+  function readASC(text, name) {
+    const lines = text.split(/\r?\n/), head = {}; let k = 0;
+    for (; k < lines.length; k++) {
+      const p = lines[k].trim().split(/\s+/);
+      if (p.length === 2 && /^[a-z_]+$/i.test(p[0])) head[p[0].toLowerCase()] = parseFloat(p[1]); else break;
+    }
+    const cs = head.cellsize, nc = head.ncols, nr = head.nrows;
+    if (!(cs > 0) || !(nc > 0) || !(nr > 0)) throw new Error("ASC 머리글을 읽지 못했어요.");
+    if (cs > 0.1) throw new Error("미터 단위 좌표(TM 등)예요. QGIS에서 WGS84(EPSG:4326)로 바꾼 뒤 다시 저장해 주세요.");
+    const x0 = "xllcorner" in head ? head.xllcorner + cs / 2 : head.xllcenter, y0 = "yllcorner" in head ? head.yllcorner + cs / 2 : head.yllcenter;
+    const nod = "nodata_value" in head ? head.nodata_value : -9999;
+    const all = new Float32Array(nc * nr); let idx = 0;
+    for (; k < lines.length && idx < all.length; k++) {
+      const s = lines[k].trim(); if (!s) continue;
+      for (const t of s.split(/\s+/)) { if (idx < all.length) { const v = parseFloat(t); all[idx++] = v <= nod + 0.5 ? 0 : v; } }
+    }
+    const lat0 = y0 + (nr - 1) * cs;
+    const j0 = Math.max(0, Math.ceil((BBOX.lonMin - x0) / cs)), j1 = Math.min(nc - 1, Math.floor((BBOX.lonMax - x0) / cs));
+    const i0 = Math.max(0, Math.ceil((lat0 - BBOX.latMax) / cs)), i1 = Math.min(nr - 1, Math.floor((lat0 - BBOX.latMin) / cs));
+    if (j1 - j0 < 4 || i1 - i0 < 4) throw new Error("이 DEM 은 제주도 범위와 겹치지 않아요.");
+    const cols = j1 - j0 + 1, rows = i1 - i0 + 1, z = new Float32Array(cols * rows);
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) z[i * cols + j] = all[(i0 + i) * nc + (j0 + j)];
+    return { lon0: x0 + j0 * cs, lat0: lat0 - i0 * cs, dLon: cs, dLat: cs, cols, rows, z, label: "ASC " + name };
+  }
+
+  function readImage(file, zmin, zmax) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+        const cx = cv.getContext("2d", { willReadFrequently: true }); cx.drawImage(img, 0, 0);
+        const d = cx.getImageData(0, 0, img.width, img.height).data, z = new Float32Array(img.width * img.height);
+        for (let k = 0; k < z.length; k++) z[k] = zmin + d[k * 4] / 255 * (zmax - zmin);
+        URL.revokeObjectURL(url);
+        resolve({ lon0: BBOX.lonMin, lat0: BBOX.latMax, dLon: (BBOX.lonMax - BBOX.lonMin) / (img.width - 1), dLat: (BBOX.latMax - BBOX.latMin) / (img.height - 1),
+                  cols: img.width, rows: img.height, z, label: "이미지 " + file.name });
+      };
+      img.onerror = () => reject(new Error("이미지를 읽지 못했어요."));
+      img.src = url;
+    });
+  }
+
+  function reduceDEM(d, maxVerts) {
+    const step = Math.max(1, Math.ceil(Math.sqrt(d.cols * d.rows / maxVerts)));
+    if (step === 1) return d;
+    const c = Math.floor(d.cols / step), r = Math.floor(d.rows / step), z = new Float32Array(c * r);
+    for (let i = 0; i < r; i++) for (let j = 0; j < c; j++) {
+      let s = 0;
+      for (let a = 0; a < step; a++) for (let b = 0; b < step; b++) s += d.z[(i * step + a) * d.cols + (j * step + b)];
+      z[i * c + j] = s / (step * step);
+    }
+    return { lon0: d.lon0 + (step - 1) / 2 * d.dLon, lat0: d.lat0 - (step - 1) / 2 * d.dLat, dLon: d.dLon * step, dLat: d.dLat * step, cols: c, rows: r, z, label: d.label };
+  }
+
+  function boxBlur(a, rows, cols, rad, iters) {
+    let src = a;
+    for (let it = 0; it < iters; it++) {
+      const tmp = new Float32Array(a.length), out = new Float32Array(a.length), w = 2 * rad + 1;
+      for (let y = 0; y < rows; y++) {
+        const o = y * cols; let s = 0;
+        for (let k = -rad; k <= rad; k++) s += src[o + clamp(k, 0, cols - 1)];
+        for (let x = 0; x < cols; x++) { tmp[o + x] = s / w; s += src[o + Math.min(cols - 1, x + rad + 1)] - src[o + Math.max(0, x - rad)]; }
+      }
+      for (let x = 0; x < cols; x++) {
+        let s = 0;
+        for (let k = -rad; k <= rad; k++) s += tmp[clamp(k, 0, rows - 1) * cols + x];
+        for (let y = 0; y < rows; y++) { out[y * cols + x] = s / w; s += tmp[Math.min(rows - 1, y + rad + 1) * cols + x] - tmp[Math.max(0, y - rad) * cols + x]; }
+      }
+      src = out;
+    }
+    return src;
+  }
+
+  // =====================================================================
+  // 렌더러 / 장면
+  // =====================================================================
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: $("c"), antialias: true, powerPreference: "high-performance" });
+  } catch (e) { fail("이 브라우저에서는 WebGL 을 쓸 수 없어요."); throw e; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1500);
+
+  // 하늘/조명 값(모든 셰이더가 같은 uniform 을 공유)
+  const U = {
+    uZenith: { value: new THREE.Vector3() }, uHorizon: { value: new THREE.Vector3() },
+    uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunColor: { value: new THREE.Vector3(1, 1, 1) },
+    uSunI: { value: 3 }, uSunGlow: { value: 1 }, uSunDisc: { value: 60 }, uExposure: { value: 1 },
+    uFog: { value: 0.010 }, uDay: { value: 1 }, uTime: { value: 0 }, uScale: { value: 1 }, uExag: { value: 2 },
+    uOrigin: { value: new THREE.Vector2() }, uPh: { value: new Float32Array(NW) }, uW: { value: [] },
+    uMask: { value: null }, uMapX: { value: new THREE.Vector2(0, 1) }, uMapN: { value: new THREE.Vector2(0, 1) }
+  };
+
+  const COMMON = `
+    uniform vec3 uZenith, uHorizon, uSunDir, uSunColor;
+    uniform float uSunI, uSunGlow, uSunDisc, uExposure, uFog, uDay;
+    const float PI = 3.14159265;
+    vec3 skyColor(vec3 d) {
+      float h = clamp(d.y, 0.0, 1.0);
+      vec3 base = mix(uHorizon, uZenith, pow(h, 0.5));
+      float s = max(dot(d, uSunDir), 0.0);
+      float low = 1.0 - clamp(uSunDir.y * 3.0, 0.0, 1.0);
+      vec3 glow = uSunColor * (pow(s, 6.0) * 0.12 * (0.6 + low) + pow(s, 48.0) * 0.5 + pow(s, 400.0) * 1.5);
+      return base + glow * uSunGlow;
+    }
+    vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    vec3 display(vec3 c) { return pow(aces(c * uExposure), vec3(1.0 / 2.2)); }
+    vec3 applyFog(vec3 col, vec3 wp) {
+      vec3 v = wp - cameraPosition;
+      float f = 1.0 - exp(-length(v) * uFog);
+      vec3 hd = normalize(vec3(v.x, 0.02 * length(v.xz), v.z));
+      return mix(col, skyColor(hd), f);
+    }
+  `;
+
+  // ---------- 하늘 ----------
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), new THREE.ShaderMaterial({
+    uniforms: U, side: THREE.BackSide, depthWrite: false,
+    vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: COMMON + `
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        vec3 c = skyColor(d);
+        c = mix(c, uHorizon * 0.55, smoothstep(0.0, -0.12, d.y));
+        float r = 0.0125;
+        float disc = smoothstep(cos(r * 1.6), cos(r), dot(d, uSunDir));
+        c += uSunColor * uSunDisc * disc;
+        gl_FragColor = vec4(display(c), 1.0);
+      }`
+  }));
+  sky.renderOrder = -10; sky.frustumCulled = false;
+  scene.add(sky);
+
+  // ---------- 지형 ----------
+  const terrainMat = new THREE.ShaderMaterial({
+    uniforms: U,
+    vertexShader: `
+      uniform float uExag; varying vec3 vWorld; varying vec3 vN; varying float vH;
+      void main() { vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; vN = normal; vH = position.y * 1000.0 / uExag; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: COMMON + `
+      varying vec3 vWorld; varying vec3 vN; varying float vH;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      vec3 ramp(float h) {
+        vec3 c0 = vec3(0.09, 0.085, 0.08), c1 = vec3(0.12, 0.11, 0.09), c2 = vec3(0.30, 0.30, 0.12), c3 = vec3(0.17, 0.27, 0.08);
+        vec3 c4 = vec3(0.10, 0.22, 0.08), c5 = vec3(0.07, 0.15, 0.07), c6 = vec3(0.26, 0.23, 0.19), c7 = vec3(0.45, 0.43, 0.41);
+        vec3 c = c0;
+        c = mix(c, c1, smoothstep(0.0, 1.4, h));
+        c = mix(c, c2, smoothstep(1.4, 5.0, h));
+        c = mix(c, c3, smoothstep(5.0, 40.0, h));
+        c = mix(c, c4, smoothstep(40.0, 400.0, h));
+        c = mix(c, c5, smoothstep(400.0, 900.0, h));
+        c = mix(c, c6, smoothstep(900.0, 1500.0, h));
+        c = mix(c, c7, smoothstep(1500.0, 2000.0, h));
+        return c;
+      }
+      void main() {
+        vec3 n = normalize(vN);
+        vec3 alb = ramp(vH);
+        float nz = 0.5 * vnoise(vWorld.xz * 40.0) + 0.5 * vnoise(vWorld.xz * 9.0);
+        alb *= 0.75 + 0.5 * nz;
+        alb = mix(alb, vec3(0.2, 0.19, 0.18), smoothstep(0.55, 0.85, 1.0 - n.y) * 0.7);
+        float ndl = max(dot(n, uSunDir), 0.0);
+        vec3 amb = mix(uHorizon * 0.5, uZenith, 0.5 + 0.5 * n.y) * 0.6;
+        vec3 col = alb * (uSunColor * uSunI * ndl + amb);
+        col = applyFog(col, vWorld);
+        gl_FragColor = vec4(display(col), 1.0);
+      }`
+  });
+  let terrain = null, grid = null;
+
+  // ---------- 바다 ----------
+  const OCEAN_COMMON = `
+    #define NW ${NW}
+    uniform float uTime, uScale;
+    uniform vec2 uOrigin;
+    uniform vec4 uW[NW];
+    uniform float uPh[NW];
+  `;
+  function makeOceanGeometry() {
+    const nseg = 256, k = 2 * Math.PI / nseg, minCell = 0.0025;
+    const rs = [0.006];
+    while (rs[rs.length - 1] < 320) rs.push(rs[rs.length - 1] + Math.max(minCell, rs[rs.length - 1] * k));
+    const nr = rs.length, pos = new Float32Array(nr * nseg * 3);
+    for (let i = 0; i < nr; i++) for (let j = 0; j < nseg; j++) {
+      const a = j / nseg * Math.PI * 2, o = (i * nseg + j) * 3;
+      pos[o] = rs[i] * Math.cos(a); pos[o + 1] = 0; pos[o + 2] = rs[i] * Math.sin(a);
+    }
+    const idx = new Uint32Array((nr - 1) * nseg * 6); let p = 0;
+    for (let i = 0; i < nr - 1; i++) for (let j = 0; j < nseg; j++) {
+      const a = i * nseg + j, b = i * nseg + (j + 1) % nseg, c = (i + 1) * nseg + (j + 1) % nseg, d = (i + 1) * nseg + j;
+      idx[p++] = a; idx[p++] = b; idx[p++] = c; idx[p++] = a; idx[p++] = c; idx[p++] = d;   // 위에서 볼 때 앞면이 되도록
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    return g;
+  }
+  const oceanMat = new THREE.ShaderMaterial({
+    uniforms: U,
+    extensions: { derivatives: true },
+    vertexShader: OCEAN_COMMON + `
+      varying vec3 vWorld;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vec2 p = (wp.xz - uOrigin) * 1000.0;
+        float h = 0.0;
+        for (int i = 0; i < 5; i++) {
+          vec4 w = uW[i]; float k = w.z;
+          h += w.w * uScale * sin(dot(w.xy, p) * k - sqrt(9.81 * k) * uTime + uPh[i]);
+        }
+        wp.y += h / 1000.0;
+        vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: OCEAN_COMMON + COMMON + `
+      uniform sampler2D uMask; uniform vec2 uMapX, uMapN;
+      varying vec3 vWorld;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+
+      // 파도 기울기. 화면 한 픽셀보다 작은 잔물결은 사라지는 대신 "거칠기"로 바꿔 줍니다.
+      vec3 oceanNormal(vec2 p, float fp, out float lost, out float steep) {
+        vec2 g = vec2(0.0); lost = 0.0;
+        for (int i = 0; i < NW; i++) {
+          vec4 w = uW[i]; float k = w.z, lam = 6.2831853 / k;
+          float ph = dot(w.xy, p) * k - sqrt(9.81 * k) * uTime + uPh[i];
+          float slope = w.w * uScale * k;
+          float fade = smoothstep(2.0 * fp, 5.0 * fp, lam);
+          g += w.xy * slope * cos(ph) * fade;
+          lost += 0.5 * slope * slope * (1.0 - fade);
+        }
+        steep = length(g);
+        return normalize(vec3(-g.x, 1.0, -g.y));
+      }
+
+      void main() {
+        vec2 p = (vWorld.xz - uOrigin) * 1000.0;
+        float fp = fwidth(p.x) + fwidth(p.y) + 0.001;
+        float lost, steep;
+        vec3 N = oceanNormal(p, fp, lost, steep);
+        vec3 V = normalize(cameraPosition - vWorld);
+        float NdV = max(dot(N, V), 0.03);
+
+        // 해안: 가까울수록 얕고 옥색, 해안선에는 하얀 물거품
+        vec2 uv = vec2((vWorld.x - uMapX.x) * uMapX.y, (-vWorld.z - uMapN.x) * uMapN.y);
+        float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+        float dep = mix(1.0, texture2D(uMask, uv).r, inside);
+        float shallow = 1.0 - smoothstep(0.0, 0.5, dep);
+
+        float F = 0.02 + 0.98 * pow(1.0 - NdV, 5.0);
+        vec3 R = reflect(-V, N); R.y = abs(R.y);
+        vec3 refl = skyColor(normalize(R));
+
+        vec3 deep = vec3(0.004, 0.030, 0.055), shal = vec3(0.03, 0.30, 0.32);
+        vec3 body = mix(deep, shal, shallow * 0.9) * (0.15 + uDay);
+        vec3 col = mix(body, refl, F);
+
+        // 태양 반사(윤슬): GGX 분포
+        float a = clamp(sqrt(0.0025 + 2.0 * lost), 0.03, 0.7), a2 = a * a;
+        vec3 H = normalize(V + uSunDir);
+        float NdH = max(dot(N, H), 0.0);
+        float dd = NdH * NdH * (a2 - 1.0) + 1.0;
+        float D = a2 / (PI * dd * dd);
+        float Fs = 0.02 + 0.98 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+        col += uSunColor * uSunI * D * Fs / (4.0 * NdV) * 0.12 * step(0.0, uSunDir.y + 0.02);
+
+        // 거품: 가파른 마루 + 해안선
+        float crest = smoothstep(0.30, 0.55, steep);
+        float surf = (1.0 - smoothstep(0.0, 0.06, dep)) * smoothstep(0.35, 0.7, vnoise(p * 0.25 + uTime * 0.6));
+        float foam = clamp(crest * 0.55 + surf, 0.0, 0.85);
+        col = mix(col, vec3(0.9, 0.93, 0.95) * (0.12 + uDay), foam);
+
+        col = applyFog(col, vWorld);
+        gl_FragColor = vec4(display(col), 1.0);
+      }`
+  });
+  const ocean = new THREE.Mesh(makeOceanGeometry(), oceanMat);
+  ocean.frustumCulled = false;
+  scene.add(ocean);
+
+  // 파도 14개: 긴 너울부터 잔물결까지 (바람 방향 둘레로 흩어 놓음)
+  (function initWaves() {
+    const rnd = mulberry32(11), lam = [180, 120, 85, 60, 43, 30, 21, 14, 9.5, 6.3, 4.2, 2.8, 1.9, 1.2];
+    const base = 62 * DEG;                                   // 파도가 나아가는 방향
+    const ws = [];
+    for (let i = 0; i < NW; i++) {
+      const k = 2 * Math.PI / lam[i], spread = lerp(25, 75, i / (NW - 1)) * DEG;
+      const th = base + (rnd() * 2 - 1) * spread;
+      const steep = 0.03 + 0.07 * (1 - lam[i] / 180) + 0.01 * rnd();
+      ws.push(new THREE.Vector4(Math.cos(th), Math.sin(th), k, steep / k));
+      U.uPh.value[i] = rnd() * Math.PI * 2;
+    }
+    U.uW.value = ws;
+  })();
+  const PH0 = Float32Array.from(U.uPh.value);
+
+  // =====================================================================
+  // 지형 만들기 (DEM → 메시, 해안 바닥, 해안선 마스크)
+  // =====================================================================
+  function setupWorld(dem) {
+    const g = reduceDEM(dem, MAX_VERTS);
+    const cellM = g.dLon * M_LON;
+    const land = new Float32Array(g.z.length);
+    for (let k = 0; k < land.length; k++) land[k] = g.z[k] > 0.5 ? 1 : 0;
+    const f = boxBlur(land, g.rows, g.cols, Math.max(2, Math.floor(1200 / cellM / 2)), 3);
+    const zf = new Float32Array(g.z.length), dep = new Uint8Array(g.z.length);
+    for (let k = 0; k < zf.length; k++) {
+      const d01 = clamp((0.5 - f[k]) * 2, 0, 1);
+      zf[k] = land[k] ? Math.max(g.z[k], 0.4) : -60 * Math.pow(d01, 0.8) - 0.4;
+      dep[k] = Math.round(d01 * 255);
+    }
+    grid = { cols: g.cols, rows: g.rows, zf, lon0: g.lon0, lat0: g.lat0, dLon: g.dLon, dLat: g.dLat,
+             dxKm: g.dLon * M_LON / 1000, dzKm: g.dLat * M_LAT / 1000, label: dem.label };
+    grid.x0 = (g.lon0 - CLON) * M_LON / 1000;
+    grid.n0 = (g.lat0 - CLAT) * M_LAT / 1000;                 // 맨 위 행의 북쪽 거리(km)
+
+    if (terrain) { scene.remove(terrain); terrain.geometry.dispose(); }
+    const geo = new THREE.BufferGeometry();
+    const N = g.cols * g.rows;
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    geo.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    const idx = new Uint32Array((g.cols - 1) * (g.rows - 1) * 6); let p = 0;
+    for (let i = 0; i < g.rows - 1; i++) for (let j = 0; j < g.cols - 1; j++) {
+      const a = i * g.cols + j, b = a + 1, c = a + g.cols, d = c + 1;
+      idx[p++] = a; idx[p++] = c; idx[p++] = b; idx[p++] = b; idx[p++] = c; idx[p++] = d;
+    }
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
+    terrain = new THREE.Mesh(geo, terrainMat);
+    terrain.frustumCulled = false;
+    scene.add(terrain);
+    updateTerrainHeights();
+
+    // 해안선 마스크(0=해안, 1=먼 바다) — 위쪽이 남쪽이 되도록 행 순서를 뒤집어 저장
+    const tex = new Uint8Array(N);
+    for (let i = 0; i < g.rows; i++) tex.set(dep.subarray(i * g.cols, (i + 1) * g.cols), (g.rows - 1 - i) * g.cols);
+    const mt = new THREE.DataTexture(tex, g.cols, g.rows, THREE.LuminanceFormat, THREE.UnsignedByteType);
+    mt.magFilter = mt.minFilter = THREE.LinearFilter; mt.needsUpdate = true; mt.unpackAlignment = 1;
+    if (U.uMask.value) U.uMask.value.dispose();
+    U.uMask.value = mt;
+    const xW = grid.x0, xE = grid.x0 + (g.cols - 1) * grid.dxKm;
+    const nN = grid.n0, nS = grid.n0 - (g.rows - 1) * grid.dzKm;
+    U.uMapX.value.set(xW, 1 / (xE - xW));
+    U.uMapN.value.set(nS, 1 / (nN - nS));
+  }
+
+  function updateTerrainHeights() {
+    const { cols, rows, zf, dxKm, dzKm } = grid, ex = U.uExag.value;
+    const pos = terrain.geometry.attributes.position.array, nor = terrain.geometry.attributes.normal.array;
+    const Y = new Float32Array(cols * rows);
+    for (let k = 0; k < Y.length; k++) Y[k] = zf[k] / 1000 * ex;
+    for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
+      const k = i * cols + j, o = k * 3;
+      pos[o] = grid.x0 + j * dxKm; pos[o + 1] = Y[k]; pos[o + 2] = -(grid.n0 - i * dzKm);
+      const yl = Y[i * cols + Math.max(0, j - 1)], yr = Y[i * cols + Math.min(cols - 1, j + 1)];
+      const yu = Y[Math.max(0, i - 1) * cols + j], yd = Y[Math.min(rows - 1, i + 1) * cols + j];
+      const dydx = (yr - yl) / ((Math.min(cols - 1, j + 1) - Math.max(0, j - 1)) * dxKm);
+      const dydz = (yd - yu) / ((Math.min(rows - 1, i + 1) - Math.max(0, i - 1)) * dzKm);
+      const l = Math.hypot(dydx, 1, dydz);
+      nor[o] = -dydx / l; nor[o + 1] = 1 / l; nor[o + 2] = -dydz / l;
+    }
+    terrain.geometry.attributes.position.needsUpdate = true;
+    terrain.geometry.attributes.normal.needsUpdate = true;
+  }
+
+  function groundAt(xKm, zKm) {                                // 해당 위치 지면 높이(km, 바다 위)
+    const j = Math.round((xKm - grid.x0) / grid.dxKm), i = Math.round((grid.n0 + zKm) / grid.dzKm);
+    if (j < 0 || j >= grid.cols || i < 0 || i >= grid.rows) return 0;
+    return Math.max(grid.zf[i * grid.cols + j], 0) / 1000 * U.uExag.value;
+  }
+
+  // =====================================================================
+  // 구도(프리셋) / 카메라 / 시간
+  // =====================================================================
+  const state = {
+    hour: 6, playing: true, hStart: 5, hEnd: 8.6, follow: 0.5,
+    pos: new THREE.Vector3(), yaw: 82, pitch: -0.5, fov: 40, uYaw: 0, uPitch: 0, midAz: 80, name: "sunrise"
+  };
+
+  function westCoastCamera(lat, inlandKm, heightKm) {
+    const i = clamp(Math.round((grid.lat0 - lat) / grid.dLat), 0, grid.rows - 1);
+    let j = 0;
+    while (j < grid.cols - 1 && grid.zf[i * grid.cols + j] <= 1) j++;
+    const x = grid.x0 + j * grid.dxKm + inlandKm, nz = grid.n0 - i * grid.dzKm;
+    return new THREE.Vector3(x, groundAt(x, nz) + heightKm, -nz);
+  }
+
+  function applyPreset(name) {
+    state.name = name; state.uYaw = 0; state.uPitch = 0;
+    const month = +$("month").value, day = +$("day").value;
+    if (name === "sunrise") {
+      Object.assign(state, { hStart: 5.0, hEnd: 8.6, follow: 0.5, yaw: 82, pitch: -0.5, fov: 40 });
+      state.pos.set((126.02 - CLON) * M_LON / 1000, 0.65, -(33.36 - CLAT) * M_LAT / 1000);
+    } else if (name === "sunset") {
+      Object.assign(state, { hStart: 16.0, hEnd: 19.95, follow: 0.55, yaw: 270, pitch: 3, fov: 42 });
+      state.pos.copy(westCoastCamera(33.33, 1.2, 0.22));
+    } else {
+      Object.assign(state, { hStart: 9.0, hEnd: 17.0, follow: 0, yaw: 0, pitch: -17, fov: 45 });
+      state.pos.set(0, 22, 62);
+    }
+    $("follow").checked = state.follow > 0;
+    $("camh").value = Math.round(state.pos.y * 1000); $("camhv").textContent = Math.round(state.pos.y * 1000) + "m";
+    $("camh").max = name === "island" ? 60000 : 3000; $("camh").step = name === "island" ? 500 : 10;
+    state.hour = state.hStart; state.playing = true;
+    const mid = solarPosition(SUN_LAT, SUN_LON, month, day, (state.hStart + state.hEnd) / 2, UTC);
+    state.midAz = mid.az;
+    for (const [id, nm] of [["pSunrise", "sunrise"], ["pSunset", "sunset"], ["pIsland", "island"]]) $(id).classList.toggle("on", nm === name);
+    refreshUI();
+  }
+
+  function skyParams(e) {
+    const night = { z: [0.003, 0.006, 0.02], h: [0.015, 0.02, 0.045] };
+    const twi = { z: [0.05, 0.09, 0.22], h: [0.95, 0.42, 0.22] };
+    const day = { z: [0.09, 0.20, 0.50], h: [0.50, 0.65, 0.85] };
+    const tw = smooth(-10, -2, e), dy = smooth(1, 20, e);
+    return {
+      z: lerp3(lerp3(night.z, twi.z, tw), day.z, dy), h: lerp3(lerp3(night.h, twi.h, tw), day.h, dy),
+      sunColor: lerp3([1.0, 0.45, 0.18], [1.0, 0.95, 0.88], clamp(e / 22, 0, 1)),
+      sunI: 3.2 * smooth(-1, 5, e), glow: smooth(-4, 2, e), disc: 60 * smooth(-2, 0.5, e),
+      exposure: 1.3 * Math.pow(2, -2.2 * smooth(-1, 26, e)), day: smooth(-6, 12, e)
+    };
+  }
+
+  function updateSun() {
+    const month = +$("month").value, day = +$("day").value;
+    const s = solarPosition(SUN_LAT, SUN_LON, month, day, state.hour, UTC);
+    const a = s.az * DEG, e = Math.max(s.el, -3) * DEG;
+    U.uSunDir.value.set(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e));     // 북쪽 = -z
+    const P = skyParams(s.el);
+    U.uZenith.value.set(...P.z); U.uHorizon.value.set(...P.h); U.uSunColor.value.set(...P.sunColor);
+    U.uSunI.value = P.sunI; U.uSunGlow.value = P.glow; U.uSunDisc.value = P.disc; U.uExposure.value = P.exposure; U.uDay.value = P.day;
+    const hh = Math.floor(state.hour), mm = Math.floor((state.hour - hh) * 60);
+    $("clock").textContent = String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+    $("sunInfo").innerHTML = "☀️ 태양 방위 <b>" + s.az.toFixed(0) + "°</b> (" + compass(s.az) + ") · 고도 <b>" + s.el.toFixed(1) + "°</b>" +
+      (s.el < 0 ? " · 해가 졌어요" : "");
+    return s;
+  }
+  const compass = az => ["북", "북동", "동", "남동", "남", "남서", "서", "북서"][Math.round(az / 45) % 8];
+  function refreshUI() { $("hour").value = state.hour; $("play").textContent = state.playing ? "⏸" : "▶"; $("play").classList.toggle("on", state.playing); }
+
+  function placeCamera(sun) {
+    const follow = $("follow").checked ? state.follow || 0.5 : 0;
+    const yaw = state.yaw + follow * (sun.az - state.midAz) + state.uYaw;
+    const pitch = clamp(state.pitch + state.uPitch, -89, 89);
+    camera.position.copy(state.pos);
+    const y = yaw * DEG, p = pitch * DEG;
+    camera.lookAt(state.pos.x + Math.sin(y) * Math.cos(p), state.pos.y + Math.sin(p), state.pos.z - Math.cos(y) * Math.cos(p));
+    camera.fov = state.fov; camera.updateProjectionMatrix();
+    sky.position.copy(camera.position);
+    ocean.position.set(camera.position.x, 0, camera.position.z);
+    // 파도 무늬가 월드에 고정되도록, 카메라 위치에 따른 위상 보정(정밀도를 위해 JS 에서 계산)
+    U.uOrigin.value.set(camera.position.x, camera.position.z);
+    for (let i = 0; i < NW; i++) {
+      const w = U.uW.value[i];
+      const ph = (w.x * camera.position.x + w.y * camera.position.z) * 1000 * w.z;
+      U.uPh.value[i] = (PH0[i] + (ph % (2 * Math.PI))) % (2 * Math.PI);
+    }
+  }
+
+  // =====================================================================
+  // 입력 / UI
+  // =====================================================================
+  const cv = $("c");
+  let drag = null;
+  cv.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const k = state.fov / 45;
+    state.uYaw -= (e.clientX - drag.x) * 0.15 * k; state.uPitch += (e.clientY - drag.y) * 0.12 * k;
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  cv.addEventListener("pointerup", () => { drag = null; });
+  cv.addEventListener("wheel", e => { e.preventDefault(); state.fov = clamp(state.fov * (e.deltaY > 0 ? 1.08 : 0.92), 15, 90); }, { passive: false });
+
+  $("pSunrise").onclick = () => applyPreset("sunrise");
+  $("pSunset").onclick = () => applyPreset("sunset");
+  $("pIsland").onclick = () => applyPreset("island");
+  $("play").onclick = () => { state.playing = !state.playing; refreshUI(); };
+  $("hour").oninput = () => { state.hour = +$("hour").value; };
+  $("speed").onchange = () => {};
+  $("waves").oninput = () => { U.uScale.value = +$("waves").value; };
+  $("camh").oninput = () => { state.pos.y = +$("camh").value / 1000; $("camhv").textContent = $("camh").value + "m"; };
+  $("exag").oninput = () => { U.uExag.value = +$("exag").value; updateTerrainHeights(); };
+  $("month").onchange = $("day").onchange = () => { const m = clamp(+$("month").value || 6, 1, 12), d = clamp(+$("day").value || 21, 1, 31); $("month").value = m; $("day").value = d;
+    state.midAz = solarPosition(SUN_LAT, SUN_LON, m, d, (state.hStart + state.hEnd) / 2, UTC).az; };
+  $("toggle").onclick = () => $("ui").classList.toggle("collapsed");
+  if (innerWidth < 700) $("ui").classList.add("collapsed");
+
+  $("demFile").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const st = $("demStatus"); st.textContent = "읽는 중…";
+    try {
+      const ext = f.name.split(".").pop().toLowerCase();
+      let dem;
+      if (ext === "hgt") dem = readHGT(await f.arrayBuffer(), f.name);
+      else if (ext === "asc") dem = readASC(await f.text(), f.name);
+      else dem = await readImage(f, +$("zmin").value, +$("zmax").value);
+      setupWorld(dem);
+      applyPreset(state.name);
+      let zmax = 0; for (let k = 0; k < grid.zf.length; k++) if (grid.zf[k] > zmax) zmax = grid.zf[k];
+      st.innerHTML = "✅ <b>" + dem.label + "</b> 적용 · 격자 " + grid.cols + "×" + grid.rows + " · 최고 " + Math.round(zmax) + "m";
+    } catch (err) { st.textContent = "❌ " + err.message; }
+  };
+
+  function resize() {
+    const w = innerWidth, h = innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  addEventListener("resize", resize); resize();
+
+  // =====================================================================
+  // 시작
+  // =====================================================================
+  setupWorld(syntheticDEM());
+  applyPreset("sunrise");
+  $("msg").textContent = "드래그로 둘러보고, 위 패널에서 시간과 구도를 바꿔 보세요";
+  setTimeout(() => { $("msg").style.display = "none"; }, 6000);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    U.uTime.value += dt;
+    if (state.playing) {
+      state.hour += dt * (+$("speed").value) / 60;
+      if (state.hour > state.hEnd) state.hour = state.hStart;
+      $("hour").value = state.hour;
+    }
+    const sun = updateSun();
+    placeCamera(sun);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // 테스트/디버깅용
+  window.__jeju = { state, U, camera, renderer, scene, ocean, sky, terrain: () => terrain, grid: () => grid };
+  </script>
+</body>
+</html>
