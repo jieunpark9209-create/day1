@@ -207,6 +207,10 @@ def synthetic_dem():
 def load_dem(path, bbox=DEM_IMAGE_BBOX, zrange=DEM_IMAGE_ZRANGE):
     if not path:
         return synthetic_dem()
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            "DEM 파일을 찾을 수 없습니다: %s\n  → 경로와 파일 이름을 확인하세요. "
+            "--dem 옵션을 빼면 가짜 지형으로 먼저 동작을 확인할 수 있습니다." % path)
     ext = os.path.splitext(path)[1].lower()
     if ext == ".hgt":
         return load_hgt(path)
@@ -757,7 +761,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    build(args)
+    try:
+        build(args)
+    except (FileNotFoundError, ValueError) as e:       # 입력 문제는 긴 오류 대신 한 줄로 안내
+        print("\n오류:", e)
+        sys.exit(1)
     scene = bpy.context.scene
     if args.save:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(args.save))
