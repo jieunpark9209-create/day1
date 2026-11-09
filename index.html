@@ -123,6 +123,39 @@
     .card h3 { margin-bottom: 6px; }
     .card p { color: #666; font-size: 14px; }
 
+    /* 배열 학습 */
+    .study-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+    .study-btn {
+      font: inherit;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 2px solid #ff7a00;
+      background: #fff;
+      color: #ff7a00;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .study-btn:hover { background: #fff3e6; }
+    .study-btn.active { background: #ff7a00; color: #fff; }
+    .study-view iframe {
+      display: block;
+      width: 100%;
+      height: 80vh;
+      min-height: 560px;
+      border: 0;
+      border-radius: 10px;
+      background: #12151c;
+    }
+    .study-empty {
+      padding: 48px 16px;
+      text-align: center;
+      color: #888;
+      background: #fff;
+      border-radius: 10px;
+    }
+    .study-open { margin-top: 10px; text-align: right; font-size: 14px; }
+    .study-open a { color: #ff7a00; }
+
     footer {
       text-align: center;
       padding: 24px 16px;
@@ -145,7 +178,7 @@
         transition: max-height 0.3s ease;
       }
 
-      nav.open { max-height: 320px; }
+      nav.open { max-height: 400px; }
 
       nav ul {
         flex-direction: column;
@@ -175,6 +208,7 @@
           <li><a href="#food">음식점</a></li>
           <li><a href="#bus">버스</a></li>
           <li><a href="#tour">관광지</a></li>
+          <li><a href="#study">배열 학습</a></li>
         </ul>
       </nav>
     </div>
@@ -235,6 +269,21 @@
         <div class="card"><h3>💧 천지연폭포</h3><p>서귀포에 있는 폭포로, 밤에는 조명이 켜져 더 아름답습니다.</p></div>
       </div>
     </section>
+
+    <!-- 배열 학습 -->
+    <section class="page" id="study">
+      <h1>🧮 배열 학습</h1>
+      <p>버튼을 누르면 아래에 애니메이션이 나타나요. 코드를 한 줄씩 실행하면서 자바스크립트 배열을 배워 보세요.</p>
+      <div class="study-btns">
+        <button type="button" class="study-btn" data-src="array-step.html">🔢 숫자 배열 (1~100 더하기)</button>
+        <button type="button" class="study-btn" data-src="cart-step.html">🛒 장바구니 (사과·배·귤)</button>
+        <button type="button" class="study-btn" data-src="apple-step.html">🍎 사과 상자 50개</button>
+      </div>
+      <div class="study-view" id="studyView">
+        <p class="study-empty">위의 버튼을 눌러 보세요 👆</p>
+      </div>
+      <p class="study-open"><a id="studyOpen" href="#" target="_blank" rel="noopener" hidden>↗ 새 창에서 크게 보기</a></p>
+    </section>
   </main>
 
   <footer>© 2026 박지은 · 제주 여행 안내</footer>
@@ -266,6 +315,23 @@
 
     // 메뉴를 누르면 모바일 메뉴는 닫기
     links.forEach(link => link.addEventListener("click", () => toggleMenu(false)));
+
+    // 배열 학습: 버튼을 누르면 해당 애니메이션 페이지를 아래에 표시
+    const studyBtns = document.querySelectorAll(".study-btn");
+    const studyView = document.getElementById("studyView");
+    const studyOpen = document.getElementById("studyOpen");
+
+    studyBtns.forEach(btn => btn.addEventListener("click", () => {
+      const src = btn.dataset.src;
+      studyBtns.forEach(b => b.classList.toggle("active", b === btn));
+      studyView.innerHTML = "";
+      const frame = document.createElement("iframe");
+      frame.src = src;
+      frame.title = btn.textContent;
+      studyView.appendChild(frame);
+      studyOpen.href = src;
+      studyOpen.hidden = false;
+    }));
 
     window.addEventListener("hashchange", showPage);
     showPage();

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>장바구니 배열 놀이</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --panel: #ffffff;
+      --text: #1f2430;
+      --muted: #6b7280;
+      --line: #e7e2d8;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --ok: #16a34a;
+      --ok-soft: #dcfce7;
+      --warn: #f59e0b;
+      --warn-soft: #fef3c7;
+      --money: #c2410c;
+      --code-bg: #1e2433;
+      --code-text: #e5e9f0;
+      --code-active: #334166;
+      --code-num: #6b7590;
+      --kw: #c792ea;
+      --numc: #f78c6c;
+      --str: #c3e88d;
+      --cmt: #7f8aa3;
+      --fn: #82aaff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12151c;
+        --panel: #1b1f29;
+        --text: #e6e8ee;
+        --muted: #9aa3b2;
+        --line: #2c3240;
+        --accent: #60a5fa;
+        --accent-soft: #1e3a5f;
+        --ok: #4ade80;
+        --ok-soft: #14532d;
+        --warn: #fbbf24;
+        --warn-soft: #4a3a10;
+        --money: #fb923c;
+        --code-bg: #0f131b;
+        --code-active: #26304a;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Pretendard", "Malgun Gothic", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px 16px 40px;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .sub { color: var(--muted); margin-bottom: 18px; font-size: 15px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .panel h2 { font-size: 15px; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+    .left-sticky { position: sticky; top: 12px; }
+
+    /* ---------- 코드 ---------- */
+    .code {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 10px 0;
+      font-family: Consolas, "D2Coding", monospace;
+      font-size: 13.5px;
+      overflow-x: auto;
+    }
+    .code-line {
+      display: flex;
+      padding: 2px 12px 2px 0;
+      border-left: 4px solid transparent;
+      white-space: pre;
+      width: max-content;
+      min-width: 100%;
+    }
+    .code-line .no { width: 34px; flex: none; text-align: right; padding-right: 12px; color: var(--code-num); user-select: none; }
+    .code-line.active { background: var(--code-active); border-left-color: var(--accent); }
+    .kw { color: var(--kw); }
+    .num { color: var(--numc); }
+    .str { color: var(--str); }
+    .cmt { color: var(--cmt); font-style: italic; }
+    .fn { color: var(--fn); }
+
+    /* ---------- 설명 ---------- */
+    .explain {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 8px;
+      padding: 12px 14px;
+      min-height: 96px;
+    }
+    .explain.done { border-left-color: var(--ok); background: var(--ok-soft); }
+    .calc { margin-top: 8px; font-family: Consolas, monospace; font-weight: bold; color: var(--accent); min-height: 1.6em; }
+    code.inline { font-family: Consolas, monospace; background: rgba(127, 127, 127, 0.15); padding: 1px 5px; border-radius: 4px; }
+
+    /* ---------- 버튼 ---------- */
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, select, input[type="number"] {
+      font: inherit;
+      font-size: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+    .progress { margin-top: 10px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.15s; }
+    .step-info { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+    /* ---------- 진열대 ---------- */
+    .shelf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .fruit {
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 6px;
+      text-align: center;
+      transition: border-color 0.2s, background 0.2s, transform 0.2s;
+    }
+    .fruit .emo { font-size: 40px; line-height: 1.1; display: block; }
+    .fruit .nm { font-weight: bold; }
+    .fruit .pr { color: var(--money); font-weight: bold; font-size: 14px; }
+    .fruit .cnt { color: var(--muted); font-size: 12px; }
+    .fruit.active { border-color: var(--warn); background: var(--warn-soft); transform: translateY(-3px); }
+
+    /* ---------- 장바구니 배열 ---------- */
+    .cart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .cart-head h2 { margin: 0; }
+    .len-badge { font-family: Consolas, monospace; font-weight: bold; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 12px; font-size: 14px; }
+    .cart {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 5px;
+      min-height: 64px;
+    }
+    .slot {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      text-align: center;
+      padding: 2px 0 3px;
+      font-family: Consolas, monospace;
+      transition: background 0.15s, transform 0.15s, opacity 0.15s;
+      cursor: pointer;
+      background: var(--panel);
+    }
+    .slot .idx { display: block; font-size: 10px; color: var(--muted); }
+    .slot .emo { display: block; font-size: 22px; line-height: 1.15; }
+    .slot .pr { display: block; font-size: 10px; color: var(--money); font-weight: bold; }
+    .slot.ghost { border-style: dashed; opacity: 0.6; cursor: default; }
+    .slot.ghost .emo { color: var(--muted); font-size: 16px; line-height: 1.6; }
+    .slot.current { background: var(--warn-soft); border-color: var(--warn); transform: scale(1.2); position: relative; z-index: 1; box-shadow: 0 3px 10px rgba(0,0,0,0.2); }
+    .slot.summed { background: var(--ok-soft); border-color: var(--ok); }
+    .slot.picked { outline: 3px solid var(--accent); outline-offset: 1px; }
+    .slot.pop { animation: pop 0.35s; }
+    @keyframes pop { 0% { transform: scale(0.4); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 1px solid; }
+    .legend .l-cur::before { background: var(--warn-soft); border-color: var(--warn); }
+    .legend .l-sum::before { background: var(--ok-soft); border-color: var(--ok); }
+    .legend .l-pick::before { border: 3px solid var(--accent); }
+
+    /* ---------- 계산대 ---------- */
+    .receipt { font-family: Consolas, monospace; font-size: 15px; }
+    .receipt .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+    .receipt .empty { color: var(--muted); font-family: inherit; font-size: 14px; padding: 4px 0 8px; }
+    .total-box {
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      background: var(--warn-soft);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .total-box .lbl { font-weight: bold; }
+    .total-box .amt { font-size: 28px; font-weight: 800; color: var(--money); font-family: Consolas, monospace; }
+    .total-box.bump { animation: bump 0.35s; }
+    @keyframes bump { 50% { transform: scale(1.04); } }
+
+    /* ---------- 변수 ---------- */
+    .vars { display: flex; flex-wrap: wrap; gap: 10px; min-height: 64px; }
+    .var { border: 2px solid var(--line); border-radius: 10px; padding: 6px 14px; min-width: 86px; text-align: center; }
+    .var .name { font-size: 12px; color: var(--muted); font-family: Consolas, monospace; }
+    .var .val { font-size: 19px; font-weight: bold; font-family: Consolas, monospace; }
+    .var.flash { animation: flash 0.6s; border-color: var(--warn); }
+    @keyframes flash { 0% { background: var(--warn-soft); transform: scale(1.1); } 100% { background: transparent; transform: scale(1); } }
+    .muted { color: var(--muted); font-size: 14px; }
+
+    /* ---------- 직접 해보기 ---------- */
+    .lab { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: Consolas, monospace; font-size: 16px; }
+    .lab input { width: 80px; font-family: Consolas, monospace; font-size: 16px; }
+    .lab-result { font-weight: bold; color: var(--accent); word-break: break-all; }
+    .lab-note { margin-top: 8px; font-size: 14px; color: var(--muted); }
+
+    /* ---------- 콘솔 ---------- */
+    .console { background: var(--code-bg); color: var(--code-text); border-radius: 10px; padding: 10px 14px; font-family: Consolas, monospace; font-size: 14px; min-height: 60px; }
+    .console div { padding: 2px 0; }
+    .console div::before { content: "> "; color: var(--code-num); }
+    .console .new { animation: newlog 0.6s; }
+    @keyframes newlog { from { background: rgba(255, 255, 255, 0.2); } to { background: transparent; } }
+
+    /* ---------- 날아가는 효과 ---------- */
+    .flyer { position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; font-size: 32px; line-height: 1; }
+    .coin { position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; font-weight: 800; color: var(--money); font-family: Consolas, monospace; font-size: 16px; white-space: nowrap; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+      .left-sticky { position: static; }
+    }
+    @media (max-width: 520px) {
+      h1 { font-size: 20px; }
+      .code { font-size: 12px; }
+      .cart { gap: 3px; }
+      .slot .emo { font-size: 16px; }
+      .slot .idx { font-size: 8px; }
+      .slot .pr { display: none; }
+      .fruit .emo { font-size: 32px; }
+      .total-box .amt { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🛒 장바구니로 배우는 자바스크립트 배열</h1>
+    <p class="sub">사과 10개, 배 5개, 귤 10개를 장바구니(배열)에 담고 총 가격을 계산해 봐요. "다음 ▶"을 누를 때마다 코드가 한 줄씩 실행됩니다. (키보드 ← → 와 스페이스바도 돼요)</p>
+
+    <div class="layout">
+      <!-- 왼쪽: 코드 + 설명 + 버튼 -->
+      <div class="stack left-sticky">
+        <div class="panel">
+          <h2>📄 코드</h2>
+          <div class="code" id="code"></div>
+        </div>
+        <div class="panel">
+          <h2>💡 지금 일어나는 일</h2>
+          <div class="explain" id="explain"></div>
+          <div class="calc" id="calc"></div>
+        </div>
+        <div class="panel">
+          <div class="controls">
+            <button id="btnReset">⏮ 처음</button>
+            <button id="btnPrev">◀ 이전</button>
+            <button id="btnNext" class="primary">다음 ▶</button>
+            <button id="btnPlay">▶ 자동 재생</button>
+            <button id="btnSkip">⏭ 반복 건너뛰기</button>
+            <select id="speed" aria-label="재생 속도">
+              <option value="1400">느리게</option>
+              <option value="800" selected>보통</option>
+              <option value="300">빠르게</option>
+              <option value="60">아주 빠르게</option>
+            </select>
+          </div>
+          <div class="progress"><div id="bar"></div></div>
+          <div class="step-info" id="stepInfo"></div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 진열대, 장바구니, 계산대 ... -->
+      <div class="stack">
+        <div class="panel">
+          <h2>🏪 과일 진열대</h2>
+          <div class="shelf" id="shelf"></div>
+        </div>
+
+        <div class="panel">
+          <div class="cart-head">
+            <h2>🛒 장바구니 배열 cart (작은 숫자 = 인덱스)</h2>
+            <span class="len-badge" id="lenBadge">cart.length = 0</span>
+          </div>
+          <div class="cart" id="cart"></div>
+          <div class="legend">
+            <span class="l-cur">지금 보고 있는 칸</span>
+            <span class="l-sum">이미 계산한 칸</span>
+            <span class="l-pick">직접 해보기에서 고른 칸</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>🧾 계산대</h2>
+          <div class="receipt" id="receipt"></div>
+          <div class="total-box" id="totalBox">
+            <span class="lbl">총 구매가격</span>
+            <span class="amt" id="totalAmt">0원</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>📦 변수 상자</h2>
+          <div class="vars" id="vars"></div>
+        </div>
+
+        <div class="panel">
+          <h2>🔍 직접 해보기: 장바구니의 몇 번 칸을 볼까요?</h2>
+          <div class="lab">
+            <span>cart[</span>
+            <input type="number" id="labInput" value="0" aria-label="인덱스">
+            <span>]</span><span>→</span>
+            <span class="lab-result" id="labResult"></span>
+          </div>
+          <div class="lab-note" id="labNote"></div>
+        </div>
+
+        <div class="panel">
+          <h2>🖥️ 콘솔 출력 (console.log 결과)</h2>
+          <div class="console" id="console"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== 1) 과일 정보 =====
+    const FRUITS = {
+      apple: { name: "사과", emoji: "🍎", price: 100,   count: 10, line: 4, obj: "를", topic: "는" },
+      pear:  { name: "배",   emoji: "🍐", price: 1000,  count: 5,  line: 5, obj: "를", topic: "는" },
+      tang:  { name: "귤",   emoji: "🍊", price: 10000, count: 10, line: 6, obj: "을", topic: "은" }
+    };
+    const ORDER = ["apple", "pear", "tang"];
+    const ITEMS = ORDER.flatMap(key => Array(FRUITS[key].count).fill(key)); // 장바구니에 들어갈 순서
+    const won = n => n.toLocaleString("ko-KR") + "원";
+
+    // ===== 2) 화면에 보여줄 코드 =====
+    const CODE = [
+      'const cart = [];   // 빈 장바구니(배열)',
+      '',
+      '// 사과 10개, 배 5개, 귤 10개 담기',
+      'for (let k = 0; k < 10; k++) cart.push({ name: "사과", price: 100 });',
+      'for (let k = 0; k < 5; k++)  cart.push({ name: "배", price: 1000 });',
+      'for (let k = 0; k < 10; k++) cart.push({ name: "귤", price: 10000 });',
+      '',
+      'console.log(cart.length)   // 25',
+      'console.log(cart[0].name)  // 사과',
+      '',
+      'let total = 0;',
+      'for (const item of cart) {',
+      '  total += item.price;',
+      '}',
+      'console.log(total + "원")  // 106000원'
+    ];
+
+    // ===== 3) 실행 단계를 미리 전부 만들어 두기 =====
+    const steps = [];
+    let cur = { line: null, vars: {}, log: [], len: 0, cur: null, summed: 0, shelf: null };
+    function push(change) {
+      const prevVars = cur.vars;
+      cur = { ...cur, changed: null, calc: "", kind: "", anim: null, newSlot: null, ...change };
+      cur.vars = { ...prevVars, ...(change.vars || {}) };
+      if (change.removeVar) { delete cur.vars[change.removeVar]; delete cur.removeVar; }
+      steps.push(cur);
+    }
+
+    push({ explain: "과일 가게에 왔어요! 🍎🍐🍊<br><b>다음 ▶</b>을 눌러 빈 장바구니부터 만들어 봅시다." });
+
+    push({
+      line: 1, vars: { cart: "[ ] 0개" }, changed: "cart",
+      explain: "<b>빈 배열</b> cart를 만듭니다. 배열은 물건을 <b>순서대로 담는 장바구니</b>예요. " +
+               "대괄호 <code class='inline'>[]</code> 안이 비어 있으니 아직 길이(<code class='inline'>length</code>)는 <b>0</b>입니다."
+    });
+
+    let idx = 0;
+    ORDER.forEach(key => {
+      const f = FRUITS[key];
+      for (let k = 0; k < f.count; k++) {
+        let ex;
+        if (idx === 0) {
+          ex = "<code class='inline'>cart.push(...)</code>는 배열의 <b>맨 끝에 하나를 추가</b>해요. " +
+               "<code class='inline'>{ name, price }</code>는 이름과 가격을 한 묶음으로 적은 <b>물건 카드</b>예요.<br>" +
+               "빈 장바구니의 첫 칸 <b>cart[0]</b>에 사과가 들어갔어요. 인덱스는 <b>0부터</b> 시작해요!";
+        } else if (k === 0) {
+          ex = `이제 ${f.emoji} ${f.name} 차례! ${f.name}${f.topic} 앞의 과일 다음 칸인 <b>cart[${idx}]</b>부터 들어가요. ` +
+               "push는 언제나 <b>맨 뒤</b>에 넣기 때문이에요.";
+        } else {
+          ex = `${f.emoji} ${f.name}${f.obj} 담았어요 → <b>cart[${idx}]</b> 칸. 이제 cart.length는 <b>${idx + 1}</b>. ` +
+               `(${f.name} ${k + 1}개째 / ${f.count}개)`;
+        }
+        push({
+          line: f.line, len: idx + 1, shelf: key, vars: { cart: `[…] ${idx + 1}개`, k }, changed: "cart",
+          newSlot: idx, anim: "push",
+          calc: `cart.push(${f.emoji}) → cart[${idx}] 에 저장, length = ${idx + 1}`,
+          explain: ex
+        });
+        idx++;
+      }
+    });
+
+    push({
+      line: 8, shelf: null, removeVar: "k", log: ["25"],
+      explain: "<code class='inline'>cart.length</code>는 배열에 든 물건의 <b>개수</b>예요. " +
+               "사과 10 + 배 5 + 귤 10 = <b>25</b>개가 출력됩니다."
+    });
+
+    push({
+      line: 9, cur: 0, log: ["25", "사과"],
+      explain: "<code class='inline'>cart[0]</code>은 <b>0번 칸의 물건 카드</b>, 거기에 <code class='inline'>.name</code>을 붙이면 그 카드의 <b>이름</b>이에요. " +
+               "그래서 <b>사과</b>가 출력돼요.<br>마지막 칸은 <b>cart[24]</b>(= cart.length - 1)이고 귤이 들어 있어요."
+    });
+
+    push({
+      line: 11, cur: null, vars: { total: 0 }, changed: "total",
+      explain: "총 가격을 모을 변수 <b>total</b>을 만들고 <b>0원</b>부터 시작합니다."
+    });
+
+    let total = 0;
+    ITEMS.forEach((key, k) => {
+      const f = FRUITS[key];
+      let ex = `<b>cart[${k}]</b> 칸의 물건 카드를 꺼내 <b>item</b>에 넣어요 → ${f.emoji} ${f.name}, ${won(f.price)} ` +
+               `(${k + 1}번째 / 25개)`;
+      if (k === 0) ex += "<br><code class='inline'>for (const item of cart)</code>는 장바구니의 칸을 <b>0번부터 끝까지 하나씩</b> 꺼내 주는 반복문이에요.";
+      if (k > 0 && ITEMS[k - 1] !== key) ex += `<br>이제 ${f.name}! 하나에 <b>${won(f.price)}</b>씩 더해져요.`;
+      push({ line: 12, cur: k, iter: k + 1, vars: { item: `${f.emoji} ${f.price}` }, changed: "item", explain: ex });
+
+      const before = total;
+      total += f.price;
+      push({
+        line: 13, cur: k, summed: k + 1, vars: { total }, changed: "total", anim: "add",
+        calc: `total = ${before} + ${f.price} = ${total}`,
+        explain: k === 0
+          ? "<code class='inline'>item.price</code>는 꺼낸 카드의 <b>가격</b>이에요. 그 값을 total에 더해 <b>누적</b>합니다."
+          : `${f.emoji} 가격 <b>${won(f.price)}</b>을 total에 더했어요. 초록색 칸은 이미 계산한 물건이에요.`
+      });
+    });
+
+    push({
+      line: 14, cur: null, removeVar: "item",
+      explain: "25개를 모두 꺼내 계산했으니 <b>반복문을 빠져나옵니다.</b> item은 반복문 안에서만 쓰는 상자라 이제 사라져요."
+    });
+
+    push({
+      line: 15, kind: "done", log: ["25", "사과", total + "원"],
+      explain: `총 구매가격은 <b>${won(total)}</b>입니다! 🎉<br>` +
+               ORDER.map(key => { const f = FRUITS[key]; return `${f.emoji} ${f.name} ${f.count}개 × ${won(f.price)} = <b>${won(f.count * f.price)}</b>`; }).join("<br>") +
+               "<br>콘솔에는 숫자와 글자를 이어 붙인 <code class='inline'>106000원</code>이 그대로 찍혀요."
+    });
+
+    // 반복 건너뛰기: 다음 구간의 시작점
+    const STOPS = [steps.findIndex(s => s.line === 8), steps.findIndex(s => s.line === 14)];
+
+    // ===== 4) 화면 그리기 =====
+    const $ = id => document.getElementById(id);
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function highlight(text) {
+      const re = /(\/\/.*$)|("[^"]*")|\b(const|let|for|of)\b|\b(console\.log|push|length)\b|\b(\d+)\b/g;
+      let out = "", last = 0, m;
+      while ((m = re.exec(text))) {
+        out += escapeHtml(text.slice(last, m.index));
+        const cls = m[1] ? "cmt" : m[2] ? "str" : m[3] ? "kw" : m[4] ? "fn" : "num";
+        out += `<span class="${cls}">${escapeHtml(m[0])}</span>`;
+        last = re.lastIndex;
+      }
+      return out + escapeHtml(text.slice(last));
+    }
+
+    // 진열대
+    $("shelf").innerHTML = ORDER.map(key => {
+      const f = FRUITS[key];
+      return `<div class="fruit" id="shelf-${key}"><span class="emo">${f.emoji}</span>` +
+             `<div class="nm">${f.name}</div><div class="pr">${won(f.price)}</div><div class="cnt">${f.count}개 담기</div></div>`;
+    }).join("");
+
+    const VAR_ORDER = ["cart", "k", "total", "item"];
+    let index = 0, prevIndex = -1, lastLogLen = 0, shownTotal = 0;
+
+    function render() {
+      const s = steps[index];
+      const forward = index === prevIndex + 1;
+
+      // 코드
+      $("code").innerHTML = CODE.map((text, n) =>
+        `<div class="code-line${s.line === n + 1 ? " active" : ""}"><span class="no">${n + 1}</span><span>${highlight(text)}</span></div>`
+      ).join("");
+
+      // 설명
+      $("explain").className = "explain" + (s.kind ? " " + s.kind : "");
+      $("explain").innerHTML = s.explain;
+      $("calc").textContent = s.calc;
+
+      // 진열대
+      ORDER.forEach(key => $("shelf-" + key).classList.toggle("active", s.shelf === key));
+
+      // 장바구니 배열
+      let html = "";
+      for (let k = 0; k < s.len; k++) {
+        const f = FRUITS[ITEMS[k]];
+        const cls = ["slot"];
+        if (s.cur === k) cls.push("current");
+        if (k < s.summed) cls.push("summed");
+        html += `<div class="${cls.join(" ")}" data-k="${k}"><span class="idx">[${k}]</span><span class="emo">${f.emoji}</span><span class="pr">${f.price}</span></div>`;
+      }
+      if (s.len < ITEMS.length && s.line !== null) {
+        html += `<div class="slot ghost"><span class="idx">[${s.len}]</span><span class="emo">＋</span><span class="pr">&nbsp;</span></div>`;
+      }
+      $("cart").innerHTML = html || `<span class="muted">아직 장바구니가 없어요.</span>`;
+      $("lenBadge").textContent = s.line === null ? "cart 없음" : `cart.length = ${s.len}`;
+
+      // 계산대
+      const counts = {};
+      ITEMS.slice(0, s.summed).forEach(key => counts[key] = (counts[key] || 0) + 1);
+      const rows = ORDER.filter(key => counts[key]).map(key => {
+        const f = FRUITS[key];
+        return `<div class="row"><span>${f.emoji} ${f.name} ${won(f.price)} × ${counts[key]}</span><b>${won(f.price * counts[key])}</b></div>`;
+      });
+      $("receipt").innerHTML = rows.length ? rows.join("") : `<div class="empty">아직 계산한 물건이 없어요.</div>`;
+      const newTotal = s.vars.total || 0;
+      if (forward && s.anim === "add" && speed() >= 200) {
+        flyCoin(s.cur, FRUITS[ITEMS[s.cur]].price, () => setTotal(newTotal, true));
+      } else {
+        setTotal(newTotal, false);
+      }
+
+      // 변수
+      const names = VAR_ORDER.filter(n => n in s.vars);
+      $("vars").innerHTML = names.length
+        ? names.map(n => `<div class="var${s.changed === n ? " flash" : ""}"><div class="name">${n}</div><div class="val">${escapeHtml(s.vars[n])}</div></div>`).join("")
+        : `<div class="muted">아직 만든 변수가 없어요.</div>`;
+
+      // 콘솔
+      $("console").innerHTML = s.log.length
+        ? s.log.map((t, n) => `<div class="${n >= lastLogLen ? "new" : ""}">${escapeHtml(t)}</div>`).join("")
+        : `<span style="color:var(--code-num)">(아직 출력된 내용이 없어요)</span>`;
+      lastLogLen = s.log.length;
+
+      // 진행 상태
+      $("bar").style.width = (index / (steps.length - 1) * 100) + "%";
+      $("stepInfo").textContent = `단계 ${index} / ${steps.length - 1}` +
+        ((s.line === 12 || s.line === 13) ? ` · 계산 ${s.iter} / 25` : "") +
+        ((s.line >= 4 && s.line <= 6) ? ` · 담은 개수 ${s.len} / 25` : "");
+      $("btnPrev").disabled = $("btnReset").disabled = index === 0;
+      $("btnNext").disabled = index === steps.length - 1;
+      $("btnSkip").disabled = !STOPS.some(p => p > index);
+
+      updateLab();
+
+      // 과일이 진열대에서 장바구니로 날아가는 효과
+      if (forward && s.anim === "push" && speed() >= 200) flyFruit(s.shelf, s.newSlot);
+      else if (s.newSlot !== null && forward) slotEl(s.newSlot)?.classList.add("pop");
+
+      prevIndex = index;
+      if (index === steps.length - 1) stop();
+    }
+
+    function slotEl(k) { return $("cart").querySelector(`.slot[data-k="${k}"]`); }
+    function speed() { return Number($("speed").value); }
+
+    function flyFruit(key, k) {
+      const from = $("shelf-" + key).querySelector(".emo").getBoundingClientRect();
+      const target = slotEl(k);
+      if (!target) return;
+      const to = target.querySelector(".emo").getBoundingClientRect();
+      target.style.visibility = "hidden";
+      const el = document.createElement("div");
+      el.className = "flyer";
+      el.textContent = FRUITS[key].emoji;
+      document.body.appendChild(el);
+      const dur = Math.min(600, speed() * 0.7);
+      const x0 = from.left + from.width / 2 - 16, y0 = from.top + from.height / 2 - 16;
+      const x1 = to.left + to.width / 2 - 16, y1 = to.top + to.height / 2 - 16;
+      const midY = Math.min(y0, y1) - 60;
+      el.animate([
+        { transform: `translate(${x0}px, ${y0}px) scale(1.2)` },
+        { transform: `translate(${(x0 + x1) / 2}px, ${midY}px) scale(1)`, offset: 0.5 },
+        { transform: `translate(${x1}px, ${y1}px) scale(0.7)` }
+      ], { duration: dur, easing: "ease-in-out" }).onfinish = () => {
+        el.remove();
+        target.style.visibility = "";
+        target.classList.add("pop");
+      };
+    }
+
+    function flyCoin(k, price, done) {
+      const from = slotEl(k)?.getBoundingClientRect();
+      const to = $("totalAmt").getBoundingClientRect();
+      if (!from) { done(); return; }
+      const el = document.createElement("div");
+      el.className = "coin";
+      el.textContent = "+" + won(price);
+      document.body.appendChild(el);
+      const dur = Math.min(600, speed() * 0.7);
+      el.animate([
+        { transform: `translate(${from.left}px, ${from.top - 10}px)`, opacity: 1 },
+        { transform: `translate(${to.left}px, ${to.top}px)`, opacity: 0.3 }
+      ], { duration: dur, easing: "ease-in" }).onfinish = () => { el.remove(); done(); };
+    }
+
+    let tween = null;
+    function setTotal(value, animate) {
+      cancelAnimationFrame(tween);
+      const el = $("totalAmt");
+      if (!animate) { shownTotal = value; el.textContent = won(value); return; }
+      const start = shownTotal, t0 = performance.now(), dur = 300;
+      const tick = now => {
+        const p = Math.min(1, (now - t0) / dur);
+        shownTotal = Math.round(start + (value - start) * p);
+        el.textContent = won(shownTotal);
+        if (p < 1) tween = requestAnimationFrame(tick);
+      };
+      tween = requestAnimationFrame(tick);
+      const box = $("totalBox");
+      box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump");
+    }
+
+    // ===== 5) 버튼 =====
+    let timer = null;
+    function go(n) { index = Math.max(0, Math.min(steps.length - 1, n)); render(); }
+    function stop() { clearInterval(timer); timer = null; $("btnPlay").textContent = "▶ 자동 재생"; }
+    function play() {
+      if (index === steps.length - 1) { prevIndex = -1; lastLogLen = 0; go(0); }
+      $("btnPlay").textContent = "⏸ 멈춤";
+      timer = setInterval(() => go(index + 1), speed());
+    }
+    $("btnNext").onclick = () => { stop(); go(index + 1); };
+    $("btnPrev").onclick = () => { stop(); go(index - 1); };
+    $("btnReset").onclick = () => { stop(); lastLogLen = 0; go(0); };
+    $("btnSkip").onclick = () => { stop(); go(STOPS.find(p => p > index)); };
+    $("btnPlay").onclick = () => timer ? stop() : play();
+    $("speed").onchange = () => { if (timer) { stop(); play(); } };
+    document.addEventListener("keydown", e => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      if (e.key === "ArrowRight") { e.preventDefault(); $("btnNext").click(); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); $("btnPrev").click(); }
+      if (e.key === " ") { e.preventDefault(); $("btnPlay").click(); }
+    });
+
+    // ===== 6) 직접 해보기 =====
+    $("cart").addEventListener("click", e => {
+      const slot = e.target.closest(".slot[data-k]");
+      if (slot) { $("labInput").value = slot.dataset.k; updateLab(); }
+    });
+    $("labInput").addEventListener("input", updateLab);
+
+    function updateLab() {
+      const s = steps[index];
+      const raw = $("labInput").value, n = Number(raw);
+      $("cart").querySelectorAll(".picked").forEach(c => c.classList.remove("picked"));
+      let result, note;
+      if (s.line === null) {
+        result = "?"; note = "아직 cart를 만들지 않았어요. 다음 ▶을 눌러 보세요.";
+      } else if (raw === "" || !Number.isInteger(n)) {
+        result = "?"; note = "0 이상의 정수를 넣어 보세요.";
+      } else if (n >= 0 && n < s.len) {
+        const f = FRUITS[ITEMS[n]];
+        result = `{ name: "${f.name}", price: ${f.price} }`;
+        note = `${f.emoji} cart[${n}].name 은 "${f.name}", cart[${n}].price 는 ${f.price} 예요.`;
+        slotEl(n)?.classList.add("picked");
+      } else {
+        result = "undefined";
+        note = s.len === 0
+          ? "장바구니가 비어 있어서 어떤 칸도 없어요. 없는 칸을 읽으면 undefined(정의되지 않음)가 나와요."
+          : `지금 장바구니에는 ${s.len}개뿐이라 칸 번호는 0 ~ ${s.len - 1}까지예요. 없는 칸을 읽으면 undefined가 나와요.`;
+      }
+      $("labResult").textContent = result;
+      $("labNote").textContent = note;
+    }
+
+    render();
+  </script>
+</body>
+</html>

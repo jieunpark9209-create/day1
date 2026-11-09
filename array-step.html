@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>배열 한 줄씩 실행</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --text: #1f2430;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --ok: #16a34a;
+      --ok-soft: #dcfce7;
+      --warn: #f59e0b;
+      --warn-soft: #fef3c7;
+      --err: #dc2626;
+      --err-soft: #fee2e2;
+      --code-bg: #1e2433;
+      --code-text: #e5e9f0;
+      --code-active: #334166;
+      --code-num: #6b7590;
+      --kw: #c792ea;
+      --numc: #f78c6c;
+      --cmt: #7f8aa3;
+      --fn: #82aaff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12151c;
+        --panel: #1b1f29;
+        --text: #e6e8ee;
+        --muted: #9aa3b2;
+        --line: #2c3240;
+        --accent: #60a5fa;
+        --accent-soft: #1e3a5f;
+        --ok: #4ade80;
+        --ok-soft: #14532d;
+        --warn: #fbbf24;
+        --warn-soft: #4a3a10;
+        --err: #f87171;
+        --err-soft: #4c1d1d;
+        --code-bg: #0f131b;
+        --code-active: #26304a;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Pretendard", "Malgun Gothic", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px 16px 40px;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .sub { color: var(--muted); margin-bottom: 18px; font-size: 15px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .panel h2 {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+
+    /* ---------- 코드 ---------- */
+    .code {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 10px 0;
+      font-family: Consolas, "D2Coding", monospace;
+      font-size: 14px;
+      overflow-x: auto;
+    }
+    .code-line {
+      display: flex;
+      padding: 2px 12px 2px 0;
+      border-left: 4px solid transparent;
+      white-space: pre;
+      transition: background 0.15s;
+    }
+    .code-line .no {
+      width: 36px;
+      flex: none;
+      text-align: right;
+      padding-right: 12px;
+      color: var(--code-num);
+      user-select: none;
+    }
+    .code-line.active { background: var(--code-active); border-left-color: var(--accent); }
+    .code-line.error { background: rgba(220, 38, 38, 0.35); border-left-color: var(--err); }
+    .code-line.fixed .txt { text-decoration: underline wavy var(--ok); text-underline-offset: 4px; }
+    .kw { color: var(--kw); }
+    .num { color: var(--numc); }
+    .cmt { color: var(--cmt); font-style: italic; }
+    .fn { color: var(--fn); }
+
+    /* ---------- 설명 ---------- */
+    .explain {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 8px;
+      padding: 12px 14px;
+      min-height: 84px;
+    }
+    .explain.error { border-left-color: var(--err); background: var(--err-soft); }
+    .explain.done { border-left-color: var(--ok); background: var(--ok-soft); }
+    .calc {
+      margin-top: 8px;
+      font-family: Consolas, monospace;
+      font-weight: bold;
+      color: var(--accent);
+      min-height: 1.6em;
+    }
+    code.inline {
+      font-family: Consolas, monospace;
+      background: rgba(127, 127, 127, 0.15);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    /* ---------- 버튼 ---------- */
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, select, input[type="number"] {
+      font: inherit;
+      font-size: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    button { cursor: pointer; }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+    .progress {
+      margin-top: 10px;
+      height: 6px;
+      background: var(--line);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.15s; }
+    .step-info { margin-top: 6px; font-size: 13px; color: var(--muted); }
+
+    /* ---------- 변수 ---------- */
+    .vars { display: flex; flex-wrap: wrap; gap: 10px; min-height: 64px; }
+    .var {
+      border: 2px solid var(--line);
+      border-radius: 10px;
+      padding: 6px 14px;
+      min-width: 86px;
+      text-align: center;
+    }
+    .var .name { font-size: 12px; color: var(--muted); font-family: Consolas, monospace; }
+    .var .val { font-size: 20px; font-weight: bold; font-family: Consolas, monospace; }
+    .var.flash { animation: flash 0.6s; border-color: var(--warn); }
+    @keyframes flash {
+      0% { background: var(--warn-soft); transform: scale(1.12); }
+      100% { background: transparent; transform: scale(1); }
+    }
+    .empty { color: var(--muted); font-size: 14px; }
+
+    /* ---------- 배열 칸 ---------- */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 4px;
+    }
+    .cell {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      text-align: center;
+      padding: 3px 0 2px;
+      font-family: Consolas, monospace;
+      transition: background 0.15s, transform 0.15s;
+      opacity: 0.25;
+    }
+    .grid.ready .cell { opacity: 1; }
+    .cell .idx { display: block; font-size: 10px; color: var(--muted); }
+    .cell .v { font-size: 15px; font-weight: bold; }
+    .cell.added { background: var(--ok-soft); border-color: var(--ok); }
+    .cell.current { background: var(--warn-soft); border-color: var(--warn); transform: scale(1.18); position: relative; z-index: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    .cell.picked { outline: 3px solid var(--accent); outline-offset: 1px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .legend span::before {
+      content: "";
+      display: inline-block;
+      width: 12px; height: 12px;
+      border-radius: 3px;
+      margin-right: 5px;
+      vertical-align: -1px;
+      border: 1px solid;
+    }
+    .legend .l-cur::before { background: var(--warn-soft); border-color: var(--warn); }
+    .legend .l-add::before { background: var(--ok-soft); border-color: var(--ok); }
+    .legend .l-pick::before { border: 3px solid var(--accent); }
+
+    /* ---------- 직접 해보기 ---------- */
+    .lab { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: Consolas, monospace; font-size: 16px; }
+    .lab input { width: 80px; font-family: Consolas, monospace; font-size: 16px; }
+    .lab-result { font-weight: bold; color: var(--accent); }
+    .lab-note { margin-top: 8px; font-size: 14px; color: var(--muted); font-family: inherit; }
+
+    /* ---------- 콘솔 ---------- */
+    .console {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: Consolas, monospace;
+      font-size: 14px;
+      min-height: 80px;
+    }
+    .console div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .console div::before { content: "> "; color: var(--code-num); }
+    .console .err { color: #ff8a8a; }
+    .console .new { animation: pop 0.5s; }
+    @keyframes pop { from { background: rgba(255, 255, 255, 0.2); } to { background: transparent; } }
+
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 20px; }
+      .cell .v { font-size: 12px; }
+      .cell .idx { font-size: 8px; }
+      .code { font-size: 12px; }
+      .var .val { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🧮 자바스크립트 배열, 한 줄씩 실행해 보기</h1>
+    <p class="sub">"다음 ▶"을 누를 때마다 코드가 한 줄씩 실행됩니다. 키보드 → ← 방향키와 스페이스바(자동 재생)로도 움직일 수 있어요.</p>
+
+    <div class="layout">
+      <!-- 왼쪽: 코드 + 설명 + 버튼 -->
+      <div class="stack">
+        <div class="panel">
+          <h2>📄 코드</h2>
+          <div class="code" id="code"></div>
+        </div>
+
+        <div class="panel">
+          <h2>💡 지금 일어나는 일</h2>
+          <div class="explain" id="explain"></div>
+          <div class="calc" id="calc"></div>
+        </div>
+
+        <div class="panel">
+          <div class="controls">
+            <button id="btnReset" title="처음으로">⏮ 처음</button>
+            <button id="btnPrev">◀ 이전</button>
+            <button id="btnNext" class="primary">다음 ▶</button>
+            <button id="btnPlay">▶ 자동 재생</button>
+            <button id="btnSkip" title="반복문을 끝까지 실행">⏭ 반복문 건너뛰기</button>
+            <select id="speed" aria-label="재생 속도">
+              <option value="1400">느리게</option>
+              <option value="700" selected>보통</option>
+              <option value="200">빠르게</option>
+              <option value="30">아주 빠르게</option>
+            </select>
+          </div>
+          <div class="progress"><div id="bar"></div></div>
+          <div class="step-info" id="stepInfo"></div>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 변수 + 배열 + 콘솔 -->
+      <div class="stack">
+        <div class="panel">
+          <h2>📦 변수 상자</h2>
+          <div class="vars" id="vars"></div>
+        </div>
+
+        <div class="panel">
+          <h2>🗂️ 배열 data (칸 위의 작은 숫자가 인덱스 = 대괄호 안의 번호)</h2>
+          <div class="grid" id="grid"></div>
+          <div class="legend">
+            <span class="l-cur">지금 꺼낸 칸</span>
+            <span class="l-add">이미 sum에 더한 칸</span>
+            <span class="l-pick">직접 해보기에서 고른 칸</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>🔍 직접 해보기: 대괄호 안의 숫자를 바꿔 보세요</h2>
+          <div class="lab">
+            <span>data[</span>
+            <input type="number" id="labInput" value="0" aria-label="인덱스">
+            <span>]</span>
+            <span>→</span>
+            <span class="lab-result" id="labResult"></span>
+          </div>
+          <div class="lab-note" id="labNote"></div>
+        </div>
+
+        <div class="panel">
+          <h2>🖥️ 콘솔 출력 (console.log 결과)</h2>
+          <div class="console" id="console"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== 1) 보여줄 코드 =====
+    // 원래 코드에서 실행에 필요한 줄만 남기고, 100개짜리 배열은 한 줄로 줄여서 보여줍니다.
+    const CODE = [
+      "const data = [1, 2, 3, ..., 100]; // 숫자 100개",
+      "console.log(data[0])",
+      "",
+      "let sum = 10",
+      "sum += 7        // sum = sum + 7",
+      "console.log(sum) // 17",
+      "let cot = 8",
+      "cnt = cnt + 1   // cnt += 1 => cnt++",
+      "for (const i of data) {",
+      "    sum += i",
+      "}",
+      "console.log(sum)"
+    ];
+    const FIXED_LINE_7 = "let cnt = 8     // ✅ cot → cnt 로 고침";
+
+    const DATA = Array.from({ length: 100 }, (_, k) => k + 1);
+
+    // ===== 2) 실행 단계를 미리 전부 만들어 두기 =====
+    const steps = [];
+    let cur = {
+      line: null, vars: {}, log: [], cell: null, added: 0,
+      ready: false, error: false, fixed: false, iter: 0,
+      changed: null, calc: "", explain: "", kind: ""
+    };
+    function push(change) {
+      const prevVars = cur.vars;
+      cur = { ...cur, changed: null, calc: "", kind: "", ...change };
+      cur.vars = { ...prevVars, ...(change.vars || {}) };
+      if (change.removeVar) { delete cur.vars[change.removeVar]; delete cur.removeVar; }
+      steps.push(cur);
+    }
+
+    push({ explain: "아직 아무것도 실행하지 않았어요. <b>다음 ▶</b> 버튼을 눌러 1번 줄부터 시작해 보세요." });
+
+    push({
+      line: 1, ready: true, vars: { data: "[1 … 100]" }, changed: "data",
+      explain: "<b>배열 data</b>를 만듭니다. 배열은 값을 <b>순서대로 담는 상자 묶음</b>이에요. " +
+               "오른쪽 표처럼 100개의 칸이 생기고, 각 칸에는 <b>0부터 시작하는 번호(인덱스)</b>가 붙습니다."
+    });
+
+    push({
+      line: 2, cell: 0, log: ["1"],
+      explain: "<code class='inline'>data[0]</code>은 <b>0번 칸</b>에 든 값입니다. " +
+               "번호는 1이 아니라 <b>0부터</b> 시작하므로, 첫 번째 값인 <b>1</b>이 출력돼요. " +
+               "(마지막 칸은 data[99] = 100 입니다.)"
+    });
+
+    push({
+      line: 4, cell: null, vars: { sum: 10 }, changed: "sum",
+      explain: "<code class='inline'>let</code>으로 <b>sum</b>이라는 변수 상자를 만들고 <b>10</b>을 넣습니다."
+    });
+
+    push({
+      line: 5, vars: { sum: 17 }, changed: "sum", calc: "sum = 10 + 7 = 17",
+      explain: "<code class='inline'>sum += 7</code> 은 <code class='inline'>sum = sum + 7</code> 의 줄임말이에요. " +
+               "지금 sum(10)에 7을 더해서 다시 sum에 넣습니다."
+    });
+
+    push({
+      line: 6, log: ["1", "17"],
+      explain: "지금 sum에 든 값 <b>17</b>을 콘솔에 출력합니다."
+    });
+
+    push({
+      line: 7, vars: { cot: 8 }, changed: "cot",
+      explain: "<b>cot</b>라는 변수를 만들고 8을 넣습니다. 그런데 다음 줄에서 쓰는 이름은 <b>cnt</b>예요… 👀"
+    });
+
+    push({
+      line: 8, error: true, kind: "error",
+      log: ["1", "17", "❌ Uncaught ReferenceError: cnt is not defined"],
+      explain: "<b>오류!</b> <code class='inline'>cnt</code>라는 변수는 만든 적이 없어요. " +
+               "7번 줄에서 <b>cot</b>라고 오타를 냈기 때문입니다.<br>" +
+               "실제 브라우저에서는 <b>여기서 실행이 멈추고, 아래 코드는 하나도 실행되지 않아요.</b> " +
+               "(그래서 반복문도, 마지막 console.log(sum)도 실행되지 않습니다.)"
+    });
+
+    push({
+      line: 7, error: false, fixed: true, removeVar: "cot", vars: { cnt: 8 }, changed: "cnt",
+      log: ["1", "17", "❌ Uncaught ReferenceError: cnt is not defined", "--- 7번 줄을 고치고 다시 실행했다고 가정 ---"],
+      explain: "7번 줄을 <code class='inline'>let cnt = 8</code> 로 고쳤다고 하고 계속 진행해 볼게요. " +
+               "이제 <b>cnt</b> 상자에 8이 들어갑니다."
+    });
+
+    push({
+      line: 8, vars: { cnt: 9 }, changed: "cnt", calc: "cnt = 8 + 1 = 9",
+      explain: "<code class='inline'>cnt = cnt + 1</code> 은 <code class='inline'>cnt += 1</code>, " +
+               "<code class='inline'>cnt++</code> 와 모두 같은 뜻입니다. cnt가 9가 돼요."
+    });
+
+    // 반복문: 한 번 돌 때마다 [9번 줄: 꺼내기] → [10번 줄: 더하기] 두 단계
+    let sum = 17;
+    DATA.forEach((v, k) => {
+      push({
+        line: 9, cell: k, iter: k + 1, vars: { i: v }, changed: "i",
+        explain: `배열 data의 <b>${k}번 칸</b>에서 값 <b>${v}</b>을 꺼내 변수 <b>i</b>에 넣습니다. ` +
+                 `(<b>${k + 1}번째</b> 반복 / 전체 100번)` +
+                 (k === 0 ? "<br><code class='inline'>for...of</code>는 배열의 칸을 <b>처음부터 끝까지 하나씩</b> 꺼내 주는 반복문이에요." : "")
+      });
+      const before = sum;
+      sum += v;
+      push({
+        line: 10, cell: k, added: k + 1, vars: { sum }, changed: "sum",
+        calc: `sum = ${before} + ${v} = ${sum}`,
+        explain: `꺼낸 값 i(<b>${v}</b>)를 sum에 더해 <b>누적</b>합니다. 초록색 칸은 이미 더한 칸이에요.`
+      });
+    });
+
+    push({
+      line: 11, cell: null, removeVar: "i",
+      explain: "100개의 칸을 모두 꺼냈으니 <b>반복문을 빠져나옵니다.</b> " +
+               "변수 i는 반복문 안에서만 쓰는 상자라 이제 사라졌어요."
+    });
+
+    push({
+      line: 12, kind: "done",
+      log: [...cur.log, String(sum)],
+      explain: `최종 합계 <b>${sum}</b>이 출력됩니다! 🎉<br>` +
+               "1부터 100까지 더하면 <b>5050</b>인데 왜 5067일까요? " +
+               "sum이 0이 아니라 <b>17</b>에서 시작했기 때문이에요. (5050 + 17 = 5067)<br>" +
+               "1~100의 합만 구하고 싶다면 반복문 전에 <code class='inline'>sum = 0</code> 으로 시작하면 됩니다."
+    });
+
+    const LOOP_END = steps.findIndex(s => s.line === 11);
+
+    // ===== 3) 화면 그리기 =====
+    const $ = id => document.getElementById(id);
+    const codeEl = $("code"), varsEl = $("vars"), gridEl = $("grid"), consoleEl = $("console");
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function highlight(text) {
+      const at = text.indexOf("//");
+      const code = at >= 0 ? text.slice(0, at) : text;
+      const cmt = at >= 0 ? text.slice(at) : "";
+      let html = escapeHtml(code)
+        .replace(/\b(const|let|for|of)\b/g, "<span class='kw'>$1</span>")
+        .replace(/\b(console\.log)\b/g, "<span class='fn'>$1</span>")
+        .replace(/\b(\d+)\b/g, "<span class='num'>$1</span>");
+      if (cmt) html += `<span class='cmt'>${escapeHtml(cmt)}</span>`;
+      return html;
+    }
+
+    // 배열 칸 100개 만들기
+    DATA.forEach((v, k) => {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.innerHTML = `<span class="idx">[${k}]</span><span class="v">${v}</span>`;
+      cell.addEventListener("click", () => { $("labInput").value = k; updateLab(); });
+      cell.style.cursor = "pointer";
+      gridEl.appendChild(cell);
+    });
+    const cells = [...gridEl.children];
+
+    const VAR_ORDER = ["data", "sum", "cot", "cnt", "i"];
+    let index = 0;
+    let lastLogLen = 0;
+
+    function render() {
+      const s = steps[index];
+
+      // 코드
+      codeEl.innerHTML = CODE.map((text, n) => {
+        const no = n + 1;
+        const shown = (no === 7 && s.fixed) ? FIXED_LINE_7 : text;
+        const cls = ["code-line"];
+        if (s.line === no) cls.push(s.error ? "error" : "active");
+        if (no === 7 && s.fixed) cls.push("fixed");
+        return `<div class="${cls.join(" ")}"><span class="no">${no}</span><span class="txt">${highlight(shown)}</span></div>`;
+      }).join("");
+
+      // 설명
+      const ex = $("explain");
+      ex.className = "explain" + (s.kind ? " " + s.kind : "");
+      ex.innerHTML = s.explain;
+      $("calc").textContent = s.calc;
+
+      // 변수
+      const names = VAR_ORDER.filter(n => n in s.vars);
+      varsEl.innerHTML = names.length
+        ? names.map(n => `<div class="var${s.changed === n ? " flash" : ""}"><div class="name">${n}</div><div class="val">${s.vars[n]}</div></div>`).join("")
+        : `<div class="empty">아직 만든 변수가 없어요.</div>`;
+
+      // 배열
+      gridEl.classList.toggle("ready", s.ready);
+      cells.forEach((c, k) => {
+        c.classList.toggle("current", s.cell === k);
+        c.classList.toggle("added", k < s.added);
+      });
+
+      // 콘솔
+      consoleEl.innerHTML = s.log.length
+        ? s.log.map((t, n) => `<div class="${t.startsWith("❌") ? "err" : ""} ${n >= lastLogLen ? "new" : ""}">${escapeHtml(t)}</div>`).join("")
+        : `<span class="empty" style="color:var(--code-num)">(아직 출력된 내용이 없어요)</span>`;
+      lastLogLen = s.log.length;
+
+      // 진행 상태
+      $("bar").style.width = (index / (steps.length - 1) * 100) + "%";
+      $("stepInfo").textContent = `단계 ${index} / ${steps.length - 1}` + (s.iter && s.line >= 9 && s.line <= 10 ? ` · 반복 ${s.iter} / 100` : "");
+      $("btnPrev").disabled = index === 0;
+      $("btnReset").disabled = index === 0;
+      $("btnNext").disabled = index === steps.length - 1;
+      $("btnSkip").disabled = index >= LOOP_END;
+      if (index === steps.length - 1) stop();
+    }
+
+    // ===== 4) 버튼 동작 =====
+    let timer = null;
+    function go(n) { index = Math.max(0, Math.min(steps.length - 1, n)); render(); }
+    function stop() { clearInterval(timer); timer = null; $("btnPlay").textContent = "▶ 자동 재생"; }
+    function play() {
+      if (index === steps.length - 1) go(0);
+      $("btnPlay").textContent = "⏸ 멈춤";
+      timer = setInterval(() => go(index + 1), Number($("speed").value));
+    }
+
+    $("btnNext").onclick = () => { stop(); go(index + 1); };
+    $("btnPrev").onclick = () => { stop(); go(index - 1); };
+    $("btnReset").onclick = () => { stop(); lastLogLen = 0; go(0); };
+    $("btnSkip").onclick = () => { stop(); go(LOOP_END); };
+    $("btnPlay").onclick = () => timer ? stop() : play();
+    $("speed").onchange = () => { if (timer) { stop(); play(); } };
+
+    document.addEventListener("keydown", e => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      if (e.key === "ArrowRight") { e.preventDefault(); $("btnNext").click(); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); $("btnPrev").click(); }
+      if (e.key === " ") { e.preventDefault(); $("btnPlay").click(); }
+    });
+
+    // ===== 5) 직접 해보기: data[숫자] =====
+    function updateLab() {
+      const raw = $("labInput").value;
+      const n = Number(raw);
+      cells.forEach(c => c.classList.remove("picked"));
+      let result, note;
+      if (raw === "" || !Number.isInteger(n)) {
+        result = "?";
+        note = "0 이상의 정수를 넣어 보세요.";
+      } else if (n >= 0 && n < DATA.length) {
+        result = DATA[n];
+        note = `${n}번 칸에는 ${DATA[n]}이 들어 있어요. 값은 항상 인덱스보다 1 커요. (0번 칸 = 1, 99번 칸 = 100)`;
+        cells[n].classList.add("picked");
+      } else {
+        result = "undefined";
+        note = `${n}번 칸은 없어요! 칸은 0번부터 99번까지 100개뿐이라서, 없는 칸을 읽으면 undefined(정의되지 않음)가 나옵니다.`;
+      }
+      $("labResult").textContent = result;
+      $("labNote").textContent = note;
+    }
+    $("labInput").addEventListener("input", updateLab);
+
+    updateLab();
+    render();
+  </script>
+</body>
+</html>
