@@ -156,6 +156,41 @@
     .study-open { margin-top: 10px; text-align: right; font-size: 14px; }
     .study-open a { color: #ff7a00; }
 
+    /* 이미지 가져오기 */
+    .box { background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); }
+    .box h3 { margin-bottom: 10px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .row input {
+      flex: 1;
+      min-width: 160px;
+      font: inherit;
+      padding: 9px 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .box button {
+      font: inherit;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 8px;
+      background: #ff7a00;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .box button.ghost { background: #eee; color: #444; }
+    .hint { margin: 8px 0 0; font-size: 13px; color: #666; overflow-wrap: anywhere; }
+    .hint.ok { color: #16a34a; }
+    .hint.err { color: #dc2626; }
+    .hint code { background: #f1f1f1; padding: 1px 5px; border-radius: 4px; }
+    .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+    .img-card { background: #fafafa; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
+    .img-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #ddd; }
+    .img-card .cap { padding: 8px 10px; font-size: 12px; color: #555; overflow-wrap: anywhere; }
+    .img-card .cap a { color: #ff7a00; }
+    .img-fail { padding: 28px 8px; text-align: center; font-size: 12px; color: #999; }
+    #urlView img { display: block; max-width: 100%; margin-top: 12px; border-radius: 10px; }
+
     footer {
       text-align: center;
       padding: 24px 16px;
@@ -209,6 +244,7 @@
           <li><a href="#bus">버스</a></li>
           <li><a href="#tour">관광지</a></li>
           <li><a href="#study">배열 학습</a></li>
+          <li><a href="#image">이미지</a></li>
         </ul>
       </nav>
     </div>
@@ -284,6 +320,44 @@
       </div>
       <p class="study-open"><a id="studyOpen" href="#" target="_blank" rel="noopener" hidden>↗ 새 창에서 크게 보기</a></p>
     </section>
+
+    <!-- 이미지 가져오기 -->
+    <section class="page" id="image">
+      <h1>🖼️ 이미지 가져오기</h1>
+      <p>Pixabay에서 사진을 검색하거나, 이미지 주소를 붙여 넣어 화면에 출력해 보세요.</p>
+
+      <div class="box">
+        <h3>1️⃣ Pixabay API 키</h3>
+        <div class="row">
+          <input type="password" id="pixKey" placeholder="API 키를 붙여 넣으세요" autocomplete="off" aria-label="Pixabay API 키">
+          <button type="button" id="pixSave">저장</button>
+          <button type="button" id="pixClear" class="ghost">지우기</button>
+        </div>
+        <p class="hint" id="pixKeyState"></p>
+        <p class="hint">🔒 키는 <b>이 브라우저에만</b> 저장되고 GitHub에는 올라가지 않아요. 코드 파일에 직접 적지 마세요. 저장소가 공개라면 다른 사람이 내 키를 쓸 수 있어요.</p>
+      </div>
+
+      <div class="box">
+        <h3>2️⃣ 사진 검색</h3>
+        <form class="row" id="pixForm">
+          <input type="search" id="pixQuery" value="제주도" placeholder="검색어 (예: 제주도, 귤, 바다)" aria-label="검색어">
+          <button type="submit">검색</button>
+        </form>
+        <p class="hint" id="pixMsg">API 키를 저장한 뒤 검색해 보세요.</p>
+        <div class="img-grid" id="pixGrid"></div>
+        <p class="hint">사진 제공: <a href="https://pixabay.com" target="_blank" rel="noopener">Pixabay</a></p>
+      </div>
+
+      <div class="box">
+        <h3>3️⃣ 이미지 주소로 불러오기</h3>
+        <form class="row" id="urlForm">
+          <input type="url" id="urlInput" placeholder="https://cdn.pixabay.com/photo/....jpg" aria-label="이미지 주소">
+          <button type="submit">불러오기</button>
+        </form>
+        <p class="hint" id="urlMsg">이미지를 오른쪽 클릭 → <b>"이미지 주소 복사"</b>로 복사한 주소를 넣으세요. (웹페이지 주소 <code>pixabay.com/photos/…</code>가 아니라 <code>cdn.pixabay.com/…jpg</code> 같은 이미지 파일 주소예요.)</p>
+        <div id="urlView"></div>
+      </div>
+    </section>
   </main>
 
   <footer>© 2026 박지은 · 제주 여행 안내</footer>
@@ -332,6 +406,105 @@
       studyOpen.href = src;
       studyOpen.hidden = false;
     }));
+
+    // ---------- 이미지 가져오기 ----------
+    const KEY_NAME = "pixabayKey";   // 키는 코드에 적지 않고, 이 브라우저(localStorage)에만 저장
+    const pixKey = document.getElementById("pixKey");
+    const pixKeyState = document.getElementById("pixKeyState");
+    const pixMsg = document.getElementById("pixMsg");
+    const pixGrid = document.getElementById("pixGrid");
+    const urlMsg = document.getElementById("urlMsg");
+    const urlView = document.getElementById("urlView");
+
+    function getKey() { try { return localStorage.getItem(KEY_NAME) || ""; } catch (e) { return ""; } }
+    function setKey(v) { try { v ? localStorage.setItem(KEY_NAME, v) : localStorage.removeItem(KEY_NAME); return true; } catch (e) { return false; } }
+    function say(el, text, kind) { el.className = "hint" + (kind ? " " + kind : ""); el.textContent = text; }
+    function showKeyState() {
+      say(pixKeyState, getKey() ? "✅ 키가 저장되어 있어요." : "아직 저장된 키가 없어요.", getKey() ? "ok" : "");
+    }
+
+    document.getElementById("pixSave").addEventListener("click", () => {
+      const v = pixKey.value.trim();
+      if (!v) { say(pixKeyState, "키를 먼저 붙여 넣어 주세요.", "err"); return; }
+      if (!setKey(v)) { say(pixKeyState, "이 브라우저에서는 저장할 수 없어요 (사생활 보호 모드 등).", "err"); return; }
+      pixKey.value = "";
+      showKeyState();
+    });
+    document.getElementById("pixClear").addEventListener("click", () => { setKey(""); pixKey.value = ""; showKeyState(); });
+
+    function makeCard(hit) {
+      const card = document.createElement("figure");
+      card.className = "img-card";
+      const link = document.createElement("a");
+      link.href = /^https:\/\//.test(hit.largeImageURL) ? hit.largeImageURL : hit.pageURL;
+      link.target = "_blank"; link.rel = "noopener";
+      const img = document.createElement("img");
+      img.src = hit.webformatURL; img.alt = hit.tags || "사진"; img.loading = "lazy";
+      img.addEventListener("error", () => {
+        const fail = document.createElement("div");
+        fail.className = "img-fail"; fail.textContent = "이미지를 불러오지 못했어요";
+        img.replaceWith(fail);
+      });
+      link.appendChild(img);
+      const cap = document.createElement("figcaption");
+      cap.className = "cap";
+      cap.append(hit.tags + " · 📷 " + hit.user + " · ");
+      const src = document.createElement("a");
+      src.href = hit.pageURL; src.target = "_blank"; src.rel = "noopener"; src.textContent = "Pixabay에서 보기";
+      cap.appendChild(src);
+      card.append(link, cap);
+      return card;
+    }
+
+    async function searchImages(q) {
+      const key = getKey();
+      pixGrid.replaceChildren();
+      if (!key) { say(pixMsg, "먼저 위에서 API 키를 저장해 주세요.", "err"); return; }
+      if (!q) { say(pixMsg, "검색어를 입력해 주세요.", "err"); return; }
+      say(pixMsg, "불러오는 중…");
+      const params = new URLSearchParams({ key, q, lang: "ko", image_type: "photo", per_page: "20", safesearch: "true" });
+      try {
+        const res = await fetch("https://pixabay.com/api/?" + params);
+        if (!res.ok) {
+          const reason = res.status === 429 ? "요청이 너무 많아요. 1분 뒤에 다시 해 보세요."
+                       : res.status === 400 ? "요청이 거절됐어요. API 키가 올바른지 확인해 주세요."
+                       : "서버 오류 (" + res.status + ")";
+          throw new Error(reason);
+        }
+        const data = await res.json();
+        if (!data.hits || !data.hits.length) { say(pixMsg, "\"" + q + "\" 검색 결과가 없어요. 다른 검색어로 해 보세요."); return; }
+        data.hits.forEach(hit => pixGrid.appendChild(makeCard(hit)));
+        say(pixMsg, "✅ \"" + q + "\" 사진 " + data.hits.length + "장 (전체 " + data.totalHits + "장 중)", "ok");
+      } catch (e) {
+        say(pixMsg, "❌ " + (e instanceof TypeError ? "불러오지 못했어요. 인터넷 연결을 확인해 주세요." : e.message), "err");
+      }
+    }
+    document.getElementById("pixForm").addEventListener("submit", e => {
+      e.preventDefault();
+      searchImages(document.getElementById("pixQuery").value.trim());
+    });
+
+    document.getElementById("urlForm").addEventListener("submit", e => {
+      e.preventDefault();
+      const raw = document.getElementById("urlInput").value.trim();
+      urlView.replaceChildren();
+      let u;
+      try { u = new URL(raw); } catch (err) { say(urlMsg, "주소 형식이 올바르지 않아요. https:// 로 시작하는 주소를 넣어 주세요.", "err"); return; }
+      if (u.protocol !== "https:" && u.protocol !== "http:") { say(urlMsg, "http:// 또는 https:// 주소만 쓸 수 있어요.", "err"); return; }
+      if (/(^|\.)pixabay\.com$/.test(u.hostname) && !/\.(jpe?g|png|gif|webp|svg)$/i.test(u.pathname)) {
+        say(urlMsg, "⚠️ 이건 이미지 파일이 아니라 Pixabay 웹페이지 주소예요. 이미지를 오른쪽 클릭 → \"이미지 주소 복사\"로 다시 복사해 주세요.", "err");
+        return;
+      }
+      say(urlMsg, "불러오는 중…");
+      const img = new Image();
+      img.referrerPolicy = "no-referrer";
+      img.alt = "불러온 이미지";
+      img.addEventListener("load", () => say(urlMsg, "✅ 불러왔어요! (" + img.naturalWidth + " × " + img.naturalHeight + ")", "ok"));
+      img.addEventListener("error", () => { img.remove(); say(urlMsg, "❌ 이미지를 불러오지 못했어요. 주소가 이미지 파일이 아니거나 만료된 것 같아요 (404).", "err"); });
+      img.src = u.href;
+      urlView.appendChild(img);
+    });
+    showKeyState();
 
     window.addEventListener("hashchange", showPage);
     showPage();
